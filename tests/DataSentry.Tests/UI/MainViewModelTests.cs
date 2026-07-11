@@ -81,12 +81,16 @@ public class MainViewModelTests
         IReadOnlyList<FileMetadata> files,
         IReadOnlyDictionary<string, string?>? textByPath = null)
     {
+        var store = new InMemoryScanResultStore();
+        var contentReader = new FakeFileContentReader(textByPath);
+
         var scanEngine = new ScanEngine(
             new FakeFileSource(files),
-            new FakeFileContentReader(textByPath),
-            new InMemoryScanResultStore(),
+            contentReader,
+            store,
             [new JunkFileRule(), new StaleFileRule()],
             [new IbanDetector()],
+            new DuplicateFileSweep(store, contentReader),
             new FixedTimeProvider(Now));
 
         return new MainViewModel(scanEngine);

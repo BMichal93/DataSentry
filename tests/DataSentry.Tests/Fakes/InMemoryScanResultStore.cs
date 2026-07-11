@@ -68,6 +68,59 @@ internal sealed class InMemoryScanResultStore : IScanResultStore
         await Task.CompletedTask;
     }
 
+    /// <summary>
+    /// The same bargain the SQLite store strikes, kept by hand: only files that share a size with
+    /// another, never an empty one, ordered so that each group of same-sized files arrives whole.
+    /// </summary>
+    public async IAsyncEnumerable<DuplicateCandidate> GetDuplicateCandidatesAsync(
+        Guid reportId,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        List<DuplicateCandidate> candidates = ResultsOf(reportId)
+            .Where(result => result.SizeBytes > 0)
+            .GroupBy(result => result.SizeBytes)
+            .Where(sameSizedFiles => sameSizedFiles.Count() > 1)
+            .OrderBy(sameSizedFiles => sameSizedFiles.Key)
+            .SelectMany(sameSizedFiles => sameSizedFiles)
+            .Select(result => new DuplicateCandidate(
+                result.FilePath,
+                result.SizeBytes,
+                result.CreatedUtc,
+                result.Recommendation,
+                result.Findings.Count > 0))
+            .ToList();
+
+        foreach (DuplicateCandidate candidate in candidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            yield return candidate;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    public Task ApplyDuplicateVerdictsAsync(
+        Guid reportId,
+        IReadOnlyList<DuplicateVerdict> verdicts,
+        CancellationToken cancellationToken = default)
+    {
+        List<FileScanResult> results = _resultsByReport[reportId];
+
+        foreach (DuplicateVerdict verdict in verdicts)
+        {
+            int index = results.FindIndex(result => result.FilePath == verdict.FilePath);
+
+            results[index] = results[index] with
+            {
+                Recommendation = verdict.Recommendation,
+                Reason = verdict.Reason
+            };
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task DeleteReportAsync(Guid reportId, CancellationToken cancellationToken = default)
     {
         _reports.Remove(reportId);

@@ -54,5 +54,11 @@ public class ReportRetentionServiceTests
 
         public Task DeleteReportAsync(Guid reportId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public IAsyncEnumerable<DuplicateCandidate> GetDuplicateCandidatesAsync(Guid reportId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task ApplyDuplicateVerdictsAsync(Guid reportId, IReadOnlyList<DuplicateVerdict> verdicts, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }
