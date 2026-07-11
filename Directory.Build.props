@@ -8,4 +8,11 @@
     <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <Product>DataSentry</Product>
+    <Authors>Michal Budziszewski</Authors>
+    <Copyright>Copyright 2026 Michal Budziszewski</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+
 </Project>
