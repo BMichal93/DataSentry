@@ -20,6 +20,18 @@ public interface IScanResultStore
         IAsyncEnumerable<FileScanResult> results,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Writes the outcome onto a report whose results have already been streamed in: when it finished,
+    /// what it added up to, and everything it could not read.
+    /// </summary>
+    /// <remarks>
+    /// This arrives second because none of it exists first. The summary is the sum of the results and
+    /// the errors are whatever the walk tripped over, so both are only known once the last file has
+    /// gone through — and by then the results have long since been streamed past, precisely so that
+    /// they never had to be held in memory to be counted.
+    /// </remarks>
+    Task CompleteReportAsync(ScanReport report, CancellationToken cancellationToken = default);
+
     /// <summary>The report metadata and summary, without the file rows. Null if it is not there.</summary>
     Task<ScanReport?> GetReportAsync(Guid reportId, CancellationToken cancellationToken = default);
 
