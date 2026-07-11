@@ -6,29 +6,271 @@
         xmlns:viewModels="clr-namespace:DataSentry.UI.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=viewModels:MainViewModel}"
-        Title="DataSentry" Height="260" Width="640">
+        Title="DataSentry" Height="700" Width="960" MinHeight="420" MinWidth="720"
+        Background="#FFFBFBFD"
+        FontFamily="Segoe UI">
 
-    <!-- The scan screen proper is still to be designed. This is the one obvious thing to do — name a
-         folder, scan it, read the headline — wired end to end through the view model. -->
-    <Grid Margin="24">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
+
+        <!-- The three verdicts, told apart at a glance. Review is blue and not red: a file that needs a
+             human decision is the interesting outcome of a scan, not a failure of one. -->
+        <Style x:Key="RecommendationBadge" TargetType="Border">
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="Width" Value="72" />
+            <Setter Property="Background" Value="#FFE8EAED" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Recommendation}" Value="Review">
+                    <Setter Property="Background" Value="#FF1A73E8" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Recommendation}" Value="Delete">
+                    <Setter Property="Background" Value="#FFB3261E" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Recommendation}" Value="Retain">
+                    <Setter Property="Background" Value="#FF1E8E3E" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="HeadingButton" TargetType="Button">
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="#FFEDEFF3" />
+            <Setter Property="Foreground" Value="#FF3C4043" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="SecondaryText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#FF5F6368" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="28,24">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBox Grid.Row="0"
-                 Padding="6"
-                 Text="{Binding FolderPath, UpdateSourceTrigger=PropertyChanged}" />
+        <!-- The one obvious thing to do: name a folder, scan it. -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
-            <Button Content="Scan" Padding="16,6" Command="{Binding ScanCommand}" />
-            <Button Content="Cancel" Padding="16,6" Margin="8,0,0,0" Command="{Binding CancelCommand}" />
-        </StackPanel>
+            <TextBox Grid.Column="0"
+                     Padding="8,7"
+                     VerticalContentAlignment="Center"
+                     BorderBrush="#FFDADCE0"
+                     Text="{Binding FolderPath, UpdateSourceTrigger=PropertyChanged}" />
 
+            <Button Grid.Column="1"
+                    Content="Browse…"
+                    Padding="14,7"
+                    Margin="8,0,0,0"
+                    Command="{Binding BrowseCommand}" />
+
+            <Button Grid.Column="2"
+                    Content="Scan"
+                    Padding="22,7"
+                    Margin="8,0,0,0"
+                    Background="#FF1A73E8"
+                    Foreground="White"
+                    BorderThickness="0"
+                    FontWeight="SemiBold"
+                    Command="{Binding ScanCommand}" />
+
+            <Button Grid.Column="3"
+                    Content="Cancel"
+                    Padding="14,7"
+                    Margin="8,0,0,0"
+                    Command="{Binding CancelCommand}"
+                    Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhenTrue}}" />
+        </Grid>
+
+        <ProgressBar Grid.Row="1"
+                     Height="3"
+                     Margin="0,16,0,0"
+                     IsIndeterminate="True"
+                     Foreground="#FF1A73E8"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhenTrue}}" />
+
+        <!-- The summary. For most users this is the first thing on screen and the only thing. -->
         <TextBlock Grid.Row="2"
-                   Margin="0,20,0,0"
+                   Margin="0,24,0,0"
+                   FontSize="21"
                    TextWrapping="Wrap"
+                   Foreground="#FF202124"
                    Text="{Binding Status}" />
+
+        <!-- A footnote, not the headline: nothing here is a decision, only what DataSentry could not see. -->
+        <Expander Grid.Row="3"
+                  Margin="0,14,0,0"
+                  Foreground="#FF5F6368"
+                  Header="{Binding UnreadableFilesSummary}"
+                  Visibility="{Binding HasUnreadableFiles, Converter={StaticResource VisibleWhenTrue}}">
+            <ItemsControl ItemsSource="{Binding UnreadableFiles}" Margin="24,8,0,0" MaxHeight="120">
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ItemsControl.Template>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Margin="0,0,0,3" Style="{StaticResource SecondaryText}">
+                            <Run Text="{Binding Reason, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="—" />
+                            <Run Text="{Binding Path, Mode=OneWay}" />
+                        </TextBlock>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Expander>
+
+        <Button Grid.Row="4"
+                HorizontalAlignment="Left"
+                Margin="0,18,0,0"
+                Padding="0"
+                Background="Transparent"
+                BorderThickness="0"
+                Foreground="#FF1A73E8"
+                Cursor="Hand"
+                Content="{Binding DetailToggleText}"
+                Command="{Binding ShowDetailCommand}"
+                Visibility="{Binding HasResults, Converter={StaticResource VisibleWhenTrue}}" />
+
+        <!-- Progressive disclosure: the detail is here when it is asked for, and not before. -->
+        <Grid Grid.Row="5"
+              Margin="0,16,0,0"
+              DataContext="{Binding Results}"
+              Visibility="{Binding DataContext.IsDetailVisible,
+                                   RelativeSource={RelativeSource AncestorType=Window},
+                                   Converter={StaticResource VisibleWhenTrue}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                <Button Content="{Binding NeedsReviewHeading}" Command="{Binding ShowNeedsReviewCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource HeadingButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsShowingNeedsReview}" Value="True">
+                                    <Setter Property="Background" Value="#FF1A73E8" />
+                                    <Setter Property="Foreground" Value="White" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <Button Content="{Binding ToDeleteHeading}" Command="{Binding ShowToDeleteCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource HeadingButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsShowingToDelete}" Value="True">
+                                    <Setter Property="Background" Value="#FFB3261E" />
+                                    <Setter Property="Foreground" Value="White" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <Button Content="{Binding ToKeepHeading}" Command="{Binding ShowToKeepCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource HeadingButton}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsShowingToKeep}" Value="True">
+                                    <Setter Property="Background" Value="#FF1E8E3E" />
+                                    <Setter Property="Foreground" Value="White" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+
+            <!-- One page of files. The list never holds more than that, however large the tree was. -->
+            <ListBox Grid.Row="1"
+                     Margin="0,12,0,0"
+                     BorderBrush="#FFE0E3E7"
+                     Background="White"
+                     ItemsSource="{Binding Rows}"
+                     HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     VirtualizingStackPanel.IsVirtualizing="True">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="4,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource RecommendationBadge}" VerticalAlignment="Top">
+                                <TextBlock Text="{Binding RecommendationText}"
+                                           Foreground="White"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" Margin="14,0,12,0">
+                                <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding FolderPath}"
+                                           Style="{StaticResource SecondaryText}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Reason}" Margin="0,4,0,0" TextWrapping="Wrap" />
+
+                                <!-- Types and counts. The matched value is never shown, here or anywhere. -->
+                                <Border Margin="0,5,0,0"
+                                        Padding="7,2"
+                                        CornerRadius="3"
+                                        Background="#FFE8F0FE"
+                                        HorizontalAlignment="Left"
+                                        Visibility="{Binding HasPii, Converter={StaticResource VisibleWhenTrue}}">
+                                    <TextBlock Text="{Binding PiiSummary}" FontSize="12" Foreground="#FF1A4FA8" />
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                <TextBlock Text="{Binding SizeText}" HorizontalAlignment="Right" />
+                                <TextBlock Text="{Binding LastModifiedText}"
+                                           Style="{StaticResource SecondaryText}"
+                                           HorizontalAlignment="Right" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
+                <TextBlock Text="{Binding PageDescription}"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource SecondaryText}" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Previous" Padding="14,6" Command="{Binding PreviousPageCommand}" />
+                    <Button Content="Next" Padding="14,6" Margin="8,0,0,0" Command="{Binding NextPageCommand}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
     </Grid>
 </Window>

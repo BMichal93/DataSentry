@@ -69,6 +69,26 @@ internal sealed class InMemoryScanResultStore : IScanResultStore
     }
 
     /// <summary>
+    /// The same page the SQLite store would return, and — the part that matters for a test — never more
+    /// than <paramref name="take"/> of them, however many the scan wrote.
+    /// </summary>
+    public Task<IReadOnlyList<FileScanResult>> GetResultsPageAsync(
+        Guid reportId,
+        Recommendation recommendation,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<FileScanResult> page = ResultsOf(reportId)
+            .Where(result => result.Recommendation == recommendation)
+            .Skip(skip)
+            .Take(take)
+            .ToList();
+
+        return Task.FromResult(page);
+    }
+
+    /// <summary>
     /// The same bargain the SQLite store strikes, kept by hand: only files that share a size with
     /// another, never an empty one, ordered so that each group of same-sized files arrives whole.
     /// </summary>
