@@ -11,6 +11,11 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.11" />
+
+    <!-- ServiceCollectionExtensions needs IServiceCollection. EF Core happens to bring it along, but
+         a project that uses a type should say so rather than rely on somebody else's dependency. -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+
     <PackageReference Include="PdfPig" Version="0.1.15" />
   </ItemGroup>
 

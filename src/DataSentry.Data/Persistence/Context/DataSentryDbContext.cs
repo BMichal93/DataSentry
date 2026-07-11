@@ -1,5 +1,5 @@
 using DataSentry.Data.Persistence.Configurations;
-using DataSentry.Data.Persistence.Models;
+using DataSentry.Data.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace DataSentry.Data.Persistence.Context;

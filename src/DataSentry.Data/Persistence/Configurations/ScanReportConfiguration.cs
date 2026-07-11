@@ -1,4 +1,4 @@
-using DataSentry.Data.Persistence.Models;
+using DataSentry.Data.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

@@ -7,7 +7,7 @@ using DataSentry.Core.Abstractions;
 using DataSentry.Core.Models;
 using DataSentry.Data.Persistence.Context;
 using DataSentry.Data.Persistence.Mapping;
-using DataSentry.Data.Persistence.Models;
+using DataSentry.Data.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace DataSentry.Data.Persistence.Stores;
@@ -63,8 +63,8 @@ public sealed class SqliteScanResultStore : IScanResultStore
         await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
         ScanReportEntity? storedReport = await context.Reports
-            .Include(storedReport => storedReport.Errors)
-            .SingleOrDefaultAsync(storedReport => storedReport.Id == report.Id, cancellationToken);
+            .Include(candidate => candidate.Errors)
+            .SingleOrDefaultAsync(candidate => candidate.Id == report.Id, cancellationToken);
 
         if (storedReport is null)
         {
