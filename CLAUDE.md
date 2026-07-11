@@ -20,6 +20,18 @@ DataSentry **recommends**; the user decides. Nothing is deleted without explicit
 
 ## Guiding principles
 
+### Priorities, in order
+
+When two of these pull in different directions, the lower number wins.
+
+1. **Make it work.** A beautiful design that does not do the job is worth nothing.
+2. **Make it easy to use.** The user's time costs more than the developer's.
+3. **Make it efficient.** Fast enough that nobody thinks about waiting.
+4. **Make it scalable.** It should survive a directory tree far larger than the one it was tested on.
+5. **Make the code pretty.** Last, but still on the list — and never an excuse to reopen a decision made higher up.
+
+This ordering is a tie-breaker, not permission to skip steps. Don't ship something ugly and call it pragmatic; get it working, *then* walk back up the list.
+
 **Simplicity beats sophistication.** Experienced developers write boring code. Prefer the obvious solution. No abstraction without at least two real callers. No design pattern applied for its own sake.
 
 **SOLID, applied with judgement.** Each rule (junk detector, PII detector, staleness detector, duplicate detector) is its own class behind a common interface, so new rules are added without touching existing ones (Open/Closed). The scan engine depends on rule abstractions, not concrete rules (Dependency Inversion). But don't invent interfaces for things that will only ever have one implementation.
@@ -105,3 +117,35 @@ Follow the Google/Apple instinct: **the tool should have one obvious thing to do
 - Constructor injection. No service locators, no statics holding state.
 - Immutable domain models where practical (`record`).
 - Fail loudly on programmer errors; handle file-system errors (access denied, path too long, file in use) gracefully — a single bad file must never abort a scan.
+
+## Git workflow
+
+**Any large change happens on its own branch.** Branch off `main`, commit there, and merge back into `main` when the work is done and green. Small, self-contained fixes may go straight to `main`; anything touching multiple files or spanning multiple commits does not.
+
+Branch names follow:
+
+```
+[type]/[task-description]
+```
+
+`[task-description]` — a short description of what the branch achieved. Lowercase, hyphen-separated.
+
+`[type]` — one of:
+
+| Type | Use for |
+|---|---|
+| `feature` | A new thing introduced. |
+| `bugfix` | Fixing broken functionality. |
+| `refactor` | Changing how existing code is structured, without changing what it does. |
+| `tests` | Testing only. |
+| `chore` | Boring, uninteresting stuff that fits nowhere else. |
+
+Examples:
+
+```
+feature/iban-detection-rule
+bugfix/scan-aborts-on-locked-file
+refactor/extract-rule-engine-from-scanner
+tests/pii-rule-edge-cases
+chore/bump-ef-core
+```
