@@ -79,6 +79,16 @@ public class CompositionRootTests
     {
         Assert.That(
             _services.GetServices<IPiiDetector>().Select(detector => detector.Name),
-            Is.EqualTo(new[] { "IBAN" }));
+            Is.EqualTo(new[]
+            {
+                "special category term",
+                "IBAN",
+                "payment card",
+                "PESEL",
+                "email address",
+                "phone number",
+                "IP address"
+            }),
+            "a detector that is written but never registered finds nothing at all");
     }
 }

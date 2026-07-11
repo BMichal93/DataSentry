@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Detection\Resources\SpecialCategoryTerms.txt" />
+  </ItemGroup>
+
 </Project>

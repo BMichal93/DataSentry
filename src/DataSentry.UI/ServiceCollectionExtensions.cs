@@ -30,7 +30,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IClassificationRule, JunkFileRule>();
         services.AddSingleton<IClassificationRule, StaleFileRule>();
 
+        // Detectors, unlike rules, are all consulted: a file can hold an account number and a diagnosis,
+        // and the user needs to be told about both. The order they are registered in is the order the
+        // findings are reported in, nothing more — which of them decides the file is settled by the
+        // priority order in RecommendationPolicy, and special category data wins it every time.
+        services.AddSingleton<IPiiDetector, SpecialCategoryDetector>();
         services.AddSingleton<IPiiDetector, IbanDetector>();
+        services.AddSingleton<IPiiDetector, PaymentCardDetector>();
+        services.AddSingleton<IPiiDetector, PeselDetector>();
+        services.AddSingleton<IPiiDetector, EmailAddressDetector>();
+        services.AddSingleton<IPiiDetector, PhoneNumberDetector>();
+        services.AddSingleton<IPiiDetector, IpAddressDetector>();
 
         services.AddSingleton<ScanEngine>();
 

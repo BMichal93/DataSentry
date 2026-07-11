@@ -18,6 +18,18 @@ public class ScanEngineTests
 
     private static readonly DateTimeOffset Now = new(2026, 7, 11, 9, 0, 0, TimeSpan.Zero);
 
+    /// <summary>Every detector the composition root registers, so that the engine is tested as it ships.</summary>
+    private static readonly IPiiDetector[] AllDetectors =
+    [
+        new SpecialCategoryDetector(),
+        new IbanDetector(),
+        new PaymentCardDetector(),
+        new PeselDetector(),
+        new EmailAddressDetector(),
+        new PhoneNumberDetector(),
+        new IpAddressDetector()
+    ];
+
     private InMemoryScanResultStore _store = null!;
 
     [SetUp]
@@ -55,6 +67,33 @@ public class ScanEngineTests
             Assert.That(result.RiskLevel, Is.EqualTo(RiskLevel.High));
             Assert.That(result.Findings.Single().MatchCount, Is.EqualTo(1));
             Assert.That(result.Reason, Does.Contain("1 IBAN"));
+        });
+    }
+
+    [Test]
+    public async Task ScanAsync_StaleTemporaryFileHoldingSpecialCategoryData_IsSurfacedForReviewRatherThanDeleted()
+    {
+        ScanReport report = await ScanAsync(
+            [FileAt("C:/work/export.tmp", Now.AddYears(-4))],
+            textByPath: new Dictionary<string, string?>
+            {
+                ["C:/work/export.tmp"] = "Employee,Notes\nKowalski,diagnosed with a chronic illness"
+            });
+
+        FileScanResult result = _store.ResultsOf(report.Id).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                result.Recommendation,
+                Is.EqualTo(Recommendation.Review),
+                "a stale temporary file is junk twice over, and Art. 9 data overrules both of them");
+            Assert.That(result.RiskLevel, Is.EqualTo(RiskLevel.Critical));
+            Assert.That(result.Reason, Does.StartWith("Special category personal data"));
+            Assert.That(
+                result.Reason,
+                Does.Not.Contain("chronic illness").And.Not.Contain("diagnosed"),
+                "the tool reports what it found, never what it read");
         });
     }
 
@@ -167,7 +206,7 @@ public class ScanEngineTests
             new FakeFileContentReader(),
             _store,
             [new JunkFileRule(), new StaleFileRule()],
-            [new IbanDetector()],
+            AllDetectors,
             new FixedTimeProvider(Now));
 
         Assert.Multiple(() =>
@@ -192,7 +231,7 @@ public class ScanEngineTests
             new FakeFileContentReader(textByPath, unreadablePaths),
             _store,
             [new JunkFileRule(), new StaleFileRule()],
-            [new IbanDetector()],
+            AllDetectors,
             new FixedTimeProvider(Now));
 
         return await engine.ScanAsync(new ScanScope("C:/work"), progress);

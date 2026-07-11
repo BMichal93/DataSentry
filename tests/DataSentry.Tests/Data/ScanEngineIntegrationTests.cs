@@ -24,6 +24,8 @@ namespace DataSentry.Tests.Data;
 public class ScanEngineIntegrationTests
 {
     private const string ValidIban = "PL61 1090 1014 0000 0712 1981 2874";
+    private const string ValidCard = "4111 1111 1111 1111";
+    private const string ValidPesel = "90031500015";
 
     private string _scanRoot = string.Empty;
     private string _databasePath = string.Empty;
@@ -111,6 +113,47 @@ public class ScanEngineIntegrationTests
     }
 
     [Test]
+    public async Task ScanAsync_CardNumbersAndIdentityNumbersInASpreadsheet_AreStoredAsTypesAndCountsAndNothingElse()
+    {
+        WriteFile(
+            "payroll.csv",
+            $"""
+             Name,PESEL,Card
+             Kowalski,{ValidPesel},{ValidCard}
+             """);
+
+        ScanReport report = await BuildEngine().ScanAsync(new ScanScope(_scanRoot));
+
+        FileScanResult result = (await _store.GetResultsAsync(report.Id).ToListAsync()).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                result.Findings.Select(finding => finding.Category),
+                Is.EquivalentTo(new[] { PiiCategory.Financial, PiiCategory.Identity }));
+            Assert.That(result.Findings.Select(finding => finding.MatchCount), Is.All.EqualTo(1));
+        });
+
+        // Read the database as the bytes it is, not through the model that wrote it: the question is
+        // whether the card number and the identity number are anywhere on that disk, and the model is
+        // the last place that would admit it.
+        SqliteConnection.ClearAllPools();
+        string everythingWeWroteDown = await File.ReadAllTextAsync(_databasePath);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                everythingWeWroteDown,
+                Does.Not.Contain(ValidCard).And.Not.Contain("1111 1111"),
+                "the database must never become a copy of the data it was built to police");
+            Assert.That(
+                everythingWeWroteDown,
+                Does.Not.Contain(ValidPesel).And.Not.Contain("0031500"),
+                "and that goes for the identity number too");
+        });
+    }
+
+    [Test]
     public async Task ScanAsync_FileHeldOpenByAnotherProcess_IsRecordedAsAnErrorAndTheScanFinishes()
     {
         WriteFile("q3-notes.txt", "Nothing in here identifies anybody.");
@@ -161,7 +204,15 @@ public class ScanEngineIntegrationTests
         contentReader ?? _services.GetRequiredService<IFileContentReader>(),
         _store,
         [new JunkFileRule(), new StaleFileRule()],
-        [new IbanDetector()],
+        [
+            new SpecialCategoryDetector(),
+            new IbanDetector(),
+            new PaymentCardDetector(),
+            new PeselDetector(),
+            new EmailAddressDetector(),
+            new PhoneNumberDetector(),
+            new IpAddressDetector()
+        ],
         TimeProvider.System);
 
     /// <summary>The real reader, with a hand on the Cancel button.</summary>
