@@ -117,6 +117,16 @@ Tests use fakes and in-memory implementations of the `Core` abstractions rather 
 
 The junk, staleness, and duplicate rules of §14.4 and the priority order of §14.2 each get the same treatment — every rule gets tests, including the edge cases (empty file, no extension, unreadable file, file locked by another process).
 
+### 14.9 Delayed start
+
+A scan over a large shared drive is I/O heavy, and nobody wants it running while they are working. So the user may **start the scan now, or start it at a time of day** — "Scan tonight at 22:00" — and walk away.
+
+- One extra control on the scan screen, not a scheduler. A time of day, or nothing. Immediate scan stays the default.
+- The time is a **local wall-clock time of day**. If it has already passed today, the scan runs at that time tomorrow. Timestamps that cross the boundary into `Core` or the database are UTC, as everywhere else.
+- A delayed scan is **visible and cancellable** while it waits. A pending scan the user cannot see or stop is a scan they will not trust.
+- The delay defers the scan only. It changes nothing about classification, recommendations, or the confirmation step — the user still reviews and confirms every deletion afterwards, exactly as with an immediate scan. **Nothing is ever deleted unattended.**
+- Waiting is not sleeping in a loop. Schedule against the clock, honour a `CancellationToken`, and survive the machine being idle.
+
 ---
 
 ## 15. REVISED — Unchanged from v1.0, restated for emphasis
