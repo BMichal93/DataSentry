@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace DataSentry.Data.Persistence;
+namespace DataSentry.Data.Persistence.Context;
 
 /// <summary>Exists so `dotnet ef migrations add` can build a context without starting the app.</summary>
 public sealed class DataSentryDbContextFactory : IDesignTimeDbContextFactory<DataSentryDbContext>

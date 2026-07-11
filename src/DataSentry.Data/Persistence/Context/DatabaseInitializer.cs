@@ -2,7 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 
-namespace DataSentry.Data.Persistence;
+namespace DataSentry.Data.Persistence.Context;
 
 /// <summary>Brings the database up to the current schema. Runs on startup, before anything reads it.</summary>
 public sealed class DatabaseInitializer

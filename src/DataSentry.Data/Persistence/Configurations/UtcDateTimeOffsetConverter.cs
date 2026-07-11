@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
-namespace DataSentry.Data.Persistence;
+namespace DataSentry.Data.Persistence.Configurations;
 
 /// <summary>
 /// SQLite cannot compare or sort a DateTimeOffset in SQL, which the retention purge and the report

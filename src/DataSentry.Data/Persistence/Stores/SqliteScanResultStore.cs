@@ -5,10 +5,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using DataSentry.Core.Abstractions;
 using DataSentry.Core.Models;
+using DataSentry.Data.Persistence.Context;
+using DataSentry.Data.Persistence.Mapping;
 using DataSentry.Data.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace DataSentry.Data.Persistence;
+namespace DataSentry.Data.Persistence.Stores;
 
 /// <summary>Stores scan reports in the local SQLite file.</summary>
 public sealed class SqliteScanResultStore : IScanResultStore

@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace DataSentry.Data.Persistence;
+namespace DataSentry.Data.Persistence.Context;
 
 /// <summary>
 /// Where the database file lives. It ships with the app rather than with a server, so there is

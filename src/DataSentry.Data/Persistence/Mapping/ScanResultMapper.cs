@@ -2,7 +2,7 @@ using System.Linq;
 using DataSentry.Core.Models;
 using DataSentry.Data.Persistence.Models;
 
-namespace DataSentry.Data.Persistence;
+namespace DataSentry.Data.Persistence.Mapping;
 
 /// <summary>Translates between the Core domain records and the persistence models, in both directions.</summary>
 internal static class ScanResultMapper

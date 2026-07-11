@@ -1,7 +1,8 @@
+using DataSentry.Data.Persistence.Configurations;
 using DataSentry.Data.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace DataSentry.Data.Persistence;
+namespace DataSentry.Data.Persistence.Context;
 
 public sealed class DataSentryDbContext : DbContext
 {

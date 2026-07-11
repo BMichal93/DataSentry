@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using DataSentry.Core.Abstractions;
 using DataSentry.Core.Models;
 using DataSentry.Data;
-using DataSentry.Data.Persistence;
+using DataSentry.Data.Persistence.Context;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 
