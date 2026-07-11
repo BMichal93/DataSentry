@@ -33,6 +33,17 @@ internal sealed class ScanSummaryAccumulator
         }
     }
 
+    /// <summary>
+    /// Corrects the headline for what the duplicate sweep changed after the fact. Every copy it
+    /// condemned was counted here as a file to keep when it first went past — the sweep only ever turns
+    /// a Retain into a Delete, so a file cannot be counted twice by it.
+    /// </summary>
+    public void AddDuplicatesMarkedForDeletion(DuplicateSweepResult duplicates)
+    {
+        _filesRecommendedForDeletion += duplicates.FilesMarkedForDeletion;
+        _reclaimableBytes += duplicates.ReclaimableBytes;
+    }
+
     public ScanSummary ToSummary() => new(
         _filesScanned,
         _totalSizeBytes,

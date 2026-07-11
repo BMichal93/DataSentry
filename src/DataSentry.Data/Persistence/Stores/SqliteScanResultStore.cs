@@ -122,6 +122,81 @@ public sealed class SqliteScanResultStore : IScanResultStore
         }
     }
 
+    /// <remarks>
+    /// The grouping happens in SQLite, not in the caller, and that is the point of it: the sizes are
+    /// already indexed rows on disk, so the database can throw away every file that has no twin without
+    /// a single path being read into memory. What comes back is only the candidates — on a real drive,
+    /// a small fraction of the tree — ordered by size so each group arrives whole.
+    /// </remarks>
+    public async IAsyncEnumerable<DuplicateCandidate> GetDuplicateCandidatesAsync(
+        Guid reportId,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // Empty files are excluded before anything else: they are all identical to one another, so they
+        // would form the single largest group on any shared drive, and none of it would be worth
+        // knowing — an empty file is already condemned by name alone.
+        IQueryable<FileScanResultEntity> filesWithASize = context.Results
+            .AsNoTracking()
+            .Where(result => result.ReportId == reportId && result.SizeBytes > 0);
+
+        IQueryable<long> sharedSizes = filesWithASize
+            .GroupBy(result => result.SizeBytes)
+            .Where(sameSizedFiles => sameSizedFiles.Count() > 1)
+            .Select(sameSizedFiles => sameSizedFiles.Key);
+
+        IAsyncEnumerable<DuplicateCandidate> candidates = filesWithASize
+            .Where(result => sharedSizes.Contains(result.SizeBytes))
+            .OrderBy(result => result.SizeBytes)
+            .ThenBy(result => result.Id)
+            .Select(result => new DuplicateCandidate(
+                result.FilePath,
+                result.SizeBytes,
+                result.CreatedUtc,
+                result.Recommendation,
+                result.Findings.Count > 0))
+            .AsAsyncEnumerable();
+
+        await foreach (DuplicateCandidate candidate in candidates.WithCancellation(cancellationToken))
+        {
+            yield return candidate;
+        }
+    }
+
+    public async Task ApplyDuplicateVerdictsAsync(
+        Guid reportId,
+        IReadOnlyList<DuplicateVerdict> verdicts,
+        CancellationToken cancellationToken = default)
+    {
+        if (verdicts.Count == 0)
+        {
+            return;
+        }
+
+        await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        Dictionary<string, DuplicateVerdict> verdictsByPath = verdicts.ToDictionary(
+            verdict => verdict.FilePath,
+            StringComparer.Ordinal);
+
+        List<string> copiedPaths = [.. verdictsByPath.Keys];
+
+        List<FileScanResultEntity> copies = await context.Results
+            .Where(result => result.ReportId == reportId && copiedPaths.Contains(result.FilePath))
+            .ToListAsync(cancellationToken);
+
+        foreach (FileScanResultEntity copy in copies)
+        {
+            DuplicateVerdict verdict = verdictsByPath[copy.FilePath];
+
+            copy.Recommendation = verdict.Recommendation;
+            copy.Reason = verdict.Reason;
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task DeleteReportAsync(Guid reportId, CancellationToken cancellationToken = default)
     {
         await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);

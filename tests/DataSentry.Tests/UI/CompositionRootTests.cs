@@ -53,6 +53,20 @@ public class CompositionRootTests
     }
 
     [Test]
+    public void CompositionRoot_TheDuplicateSweep_IsRegisteredAlongsideTheRulesRatherThanAsOneOfThem()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(_services.GetRequiredService<DuplicateFileSweep>(), Is.Not.Null);
+
+            Assert.That(
+                _services.GetServices<IClassificationRule>(),
+                Has.None.InstanceOf<DuplicateFileSweep>(),
+                "a rule is asked about one file at a time, and no file is a duplicate on its own");
+        });
+    }
+
+    [Test]
     public void CompositionRoot_TheSeamsCoreTalksThrough_AreTheRealImplementations()
     {
         Assert.Multiple(() =>

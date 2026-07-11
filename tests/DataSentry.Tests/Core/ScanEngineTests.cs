@@ -116,7 +116,10 @@ public class ScanEngineTests
     public async Task ScanAsync_FileLockedByAnotherProcess_RecordsAnErrorAndKeepsScanning()
     {
         ScanReport report = await ScanAsync(
-            [FileAt("C:/work/open-in-excel.xlsx"), FileAt("C:/work/report.docx")],
+            [
+                FileAt("C:/work/open-in-excel.xlsx", sizeBytes: 8_192),
+                FileAt("C:/work/report.docx", sizeBytes: 4_096)
+            ],
             unreadablePaths: new HashSet<string> { "C:/work/open-in-excel.xlsx" });
 
         Assert.Multiple(() =>
@@ -163,6 +166,35 @@ public class ScanEngineTests
     }
 
     [Test]
+    public async Task ScanAsync_TwoFilesWithTheSameContents_CondemnsTheCopyAndCountsItInTheHeadline()
+    {
+        ScanReport report = await ScanAsync(
+        [
+            FileAt("C:/work/report.docx", sizeBytes: 1_000, createdUtc: Now.AddYears(-3)),
+            FileAt("C:/work/backup/report.docx", sizeBytes: 1_000, createdUtc: Now.AddDays(-2))
+        ],
+        contentHashByPath: new Dictionary<string, string>
+        {
+            ["C:/work/report.docx"] = "same",
+            ["C:/work/backup/report.docx"] = "same"
+        });
+
+        IReadOnlyList<FileScanResult> results = _store.ResultsOf(report.Id);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(RecommendationFor(results, "C:/work/report.docx"), Is.EqualTo(Recommendation.Retain));
+            Assert.That(RecommendationFor(results, "C:/work/backup/report.docx"), Is.EqualTo(Recommendation.Delete));
+
+            Assert.That(
+                report.Summary.FilesRecommendedForDeletion,
+                Is.EqualTo(1),
+                "the copy was counted as one to keep when it went past, and the sweep has to correct that");
+            Assert.That(report.Summary.ReclaimableBytes, Is.EqualTo(1_000));
+        });
+    }
+
+    [Test]
     public async Task ScanAsync_WhileItRuns_ReportsWhatItHasFoundAndWhatItHasGotThrough()
     {
         var reported = new ConcurrentBag<ScanProgress>();
@@ -195,6 +227,8 @@ public class ScanEngineTests
             FileAt("C:/work/c.docx")
         };
 
+        var contentReader = new FakeFileContentReader();
+
         var engine = new ScanEngine(
             new FakeFileSource(files, onFileEnumerated: file =>
             {
@@ -203,10 +237,11 @@ public class ScanEngineTests
                     cancellation.Cancel();
                 }
             }),
-            new FakeFileContentReader(),
+            contentReader,
             _store,
             [new JunkFileRule(), new StaleFileRule()],
             AllDetectors,
+            new DuplicateFileSweep(_store, contentReader),
             new FixedTimeProvider(Now));
 
         Assert.Multiple(() =>
@@ -224,14 +259,18 @@ public class ScanEngineTests
         IReadOnlyDictionary<string, string?>? textByPath = null,
         IReadOnlySet<string>? unreadablePaths = null,
         IReadOnlyList<ScanError>? walkErrors = null,
-        IProgress<ScanProgress>? progress = null)
+        IProgress<ScanProgress>? progress = null,
+        IReadOnlyDictionary<string, string>? contentHashByPath = null)
     {
+        var contentReader = new FakeFileContentReader(textByPath, unreadablePaths, contentHashByPath);
+
         var engine = new ScanEngine(
             new FakeFileSource(files, walkErrors),
-            new FakeFileContentReader(textByPath, unreadablePaths),
+            contentReader,
             _store,
             [new JunkFileRule(), new StaleFileRule()],
             AllDetectors,
+            new DuplicateFileSweep(_store, contentReader),
             new FixedTimeProvider(Now));
 
         return await engine.ScanAsync(new ScanScope("C:/work"), progress);
@@ -240,10 +279,14 @@ public class ScanEngineTests
     private static Recommendation RecommendationFor(IReadOnlyList<FileScanResult> results, string filePath) =>
         results.Single(result => result.FilePath == filePath).Recommendation;
 
-    private static FileMetadata FileAt(string filePath, DateTimeOffset? lastTouchedUtc = null, long sizeBytes = 4_096)
+    private static FileMetadata FileAt(
+        string filePath,
+        DateTimeOffset? lastTouchedUtc = null,
+        long sizeBytes = 4_096,
+        DateTimeOffset? createdUtc = null)
     {
         DateTimeOffset touched = lastTouchedUtc ?? Now.AddDays(-1);
 
-        return new FileMetadata(filePath, sizeBytes, touched, touched, touched);
+        return new FileMetadata(filePath, sizeBytes, createdUtc ?? touched, touched, touched);
     }
 }

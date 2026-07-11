@@ -41,6 +41,37 @@ public interface IScanResultStore
     /// <summary>The per-file results of a report, streamed for display.</summary>
     IAsyncEnumerable<FileScanResult> GetResultsAsync(Guid reportId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Every file in the report that shares its size with at least one other file, ordered by size so
+    /// that each group of same-sized files arrives in one run. Files of a size no other file shares are
+    /// never returned: two files of different sizes cannot be copies of each other, and that one fact
+    /// eliminates almost every pair in a real tree without anything being opened.
+    /// </summary>
+    /// <remarks>
+    /// <b>The grouping is the store's job, and this is the whole reason why.</b> The store has already
+    /// written every path and size to disk, and a database sorting rows on disk is what a database is
+    /// for — so the candidates can be found without a single path being held in memory. The caller sees
+    /// only files that already have a twin, which is what keeps the cost of a duplicate sweep
+    /// proportional to the number of candidates rather than to the size of the tree.
+    ///
+    /// Empty files are never candidates. They are all byte-for-byte identical to one another, so a
+    /// shared drive can hold thousands in one group — and there is nothing to gain by hashing them,
+    /// since an empty file is already condemned by name alone ("Empty file") and holds nothing that
+    /// deleting it could lose.
+    /// </remarks>
+    IAsyncEnumerable<DuplicateCandidate> GetDuplicateCandidatesAsync(
+        Guid reportId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes the sweep's rulings over the verdicts those files were first given. Applied one group of
+    /// copies at a time, so that a scan which found a great many of them never gathers them all up first.
+    /// </summary>
+    Task ApplyDuplicateVerdictsAsync(
+        Guid reportId,
+        IReadOnlyList<DuplicateVerdict> verdicts,
+        CancellationToken cancellationToken = default);
+
     Task DeleteReportAsync(Guid reportId, CancellationToken cancellationToken = default);
 
     /// <summary>

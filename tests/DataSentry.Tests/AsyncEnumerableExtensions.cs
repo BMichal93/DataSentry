@@ -17,4 +17,15 @@ internal static class AsyncEnumerableExtensions
 
         return items;
     }
+
+    /// <summary>The other direction: a list, offered to something that only takes a stream.</summary>
+    public static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(this IEnumerable<T> source)
+    {
+        foreach (T item in source)
+        {
+            yield return item;
+        }
+
+        await Task.CompletedTask;
+    }
 }

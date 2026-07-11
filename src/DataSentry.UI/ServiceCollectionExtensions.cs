@@ -42,6 +42,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPiiDetector, PhoneNumberDetector>();
         services.AddSingleton<IPiiDetector, IpAddressDetector>();
 
+        // Not a rule, and registered apart from them on purpose: a rule is asked about one file, and no
+        // file is a duplicate on its own. This one runs over the results the scan has already written.
+        services.AddSingleton<DuplicateFileSweep>();
+
         services.AddSingleton<ScanEngine>();
 
         return services;

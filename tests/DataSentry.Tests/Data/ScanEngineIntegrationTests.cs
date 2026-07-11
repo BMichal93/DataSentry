@@ -84,6 +84,65 @@ public class ScanEngineIntegrationTests
     }
 
     [Test]
+    public async Task ScanAsync_TheSameSpreadsheetSavedTwice_KeepsTheOriginalAndCondemnsTheCopy()
+    {
+        // Byte for byte the same file, and a third that only weighs the same as them — which is the
+        // pair the hash exists to tell apart, and it is a real hash of two real files that tells them.
+        const string Contents = "Supplier,Amount\nKowalski,1200.00\nNowak,980.00\n";
+
+        WriteFile("suppliers.csv", Contents);
+        WriteFile(Path.Combine("backup", "suppliers.csv"), Contents);
+        WriteFile("coincidence.csv", new string('x', Contents.Length));
+
+        ScanReport report = await BuildEngine().ScanAsync(new ScanScope(_scanRoot));
+
+        List<FileScanResult> results = await _store.GetResultsAsync(report.Id).ToListAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                RecommendationFor(results, "coincidence.csv"),
+                Is.EqualTo(Recommendation.Retain),
+                "same size, different contents — the hash is what decides, and here it said no");
+
+            Assert.That(
+                results.Count(result => result.Recommendation == Recommendation.Delete),
+                Is.EqualTo(1),
+                "one of the two identical files is the original, and exactly one of them is the copy");
+
+            Assert.That(
+                results.Single(result => result.Recommendation == Recommendation.Delete).Reason,
+                Does.StartWith("Identical copy of suppliers.csv"));
+
+            Assert.That(report.Summary.FilesRecommendedForDeletion, Is.EqualTo(1));
+            Assert.That(report.Summary.ReclaimableBytes, Is.EqualTo(Contents.Length));
+        });
+    }
+
+    [Test]
+    public async Task ScanAsync_ACopyHoldingSpecialCategoryData_IsSurfacedForReviewRatherThanDeleted()
+    {
+        const string Contents = "Employee,Notes\nKowalski,diagnosed with a chronic illness\n";
+
+        WriteFile("health.csv", Contents);
+        WriteFile(Path.Combine("backup", "health.csv"), Contents);
+
+        ScanReport report = await BuildEngine().ScanAsync(new ScanScope(_scanRoot));
+
+        List<FileScanResult> results = await _store.GetResultsAsync(report.Id).ToListAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                results.Select(result => result.Recommendation),
+                Is.All.EqualTo(Recommendation.Review),
+                "the copy of a file full of health data is a file full of health data: Art. 9 overrides the duplicate verdict, exactly as it overrides every other one");
+            Assert.That(report.Summary.FilesRecommendedForDeletion, Is.Zero);
+            Assert.That(report.Summary.FilesNeedingReview, Is.EqualTo(2));
+        });
+    }
+
+    [Test]
     public async Task ScanAsync_AccountNumberInASpreadsheet_IsStoredAsATypeAndACountAndNothingElse()
     {
         WriteFile("suppliers.csv", $"Supplier,Account\nKowalski,{ValidIban}");
@@ -199,21 +258,27 @@ public class ScanEngineIntegrationTests
         Assert.That(reports, Is.Empty, "a scan that was stopped halfway rolls back: there is nothing to act on");
     }
 
-    private ScanEngine BuildEngine(IFileContentReader? contentReader = null) => new(
-        _services.GetRequiredService<IFileSource>(),
-        contentReader ?? _services.GetRequiredService<IFileContentReader>(),
-        _store,
-        [new JunkFileRule(), new StaleFileRule()],
-        [
-            new SpecialCategoryDetector(),
-            new IbanDetector(),
-            new PaymentCardDetector(),
-            new PeselDetector(),
-            new EmailAddressDetector(),
-            new PhoneNumberDetector(),
-            new IpAddressDetector()
-        ],
-        TimeProvider.System);
+    private ScanEngine BuildEngine(IFileContentReader? contentReader = null)
+    {
+        IFileContentReader reader = contentReader ?? _services.GetRequiredService<IFileContentReader>();
+
+        return new ScanEngine(
+            _services.GetRequiredService<IFileSource>(),
+            reader,
+            _store,
+            [new JunkFileRule(), new StaleFileRule()],
+            [
+                new SpecialCategoryDetector(),
+                new IbanDetector(),
+                new PaymentCardDetector(),
+                new PeselDetector(),
+                new EmailAddressDetector(),
+                new PhoneNumberDetector(),
+                new IpAddressDetector()
+            ],
+            new DuplicateFileSweep(_store, reader),
+            TimeProvider.System);
+    }
 
     /// <summary>The real reader, with a hand on the Cancel button.</summary>
     private sealed class CancellingFileContentReader(

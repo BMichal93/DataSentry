@@ -49,6 +49,7 @@ public sealed class ScanEngine
     private readonly IScanResultStore _resultStore;
     private readonly IReadOnlyList<IClassificationRule> _rules;
     private readonly IReadOnlyList<IPiiDetector> _detectors;
+    private readonly DuplicateFileSweep _duplicateSweep;
     private readonly TimeProvider _timeProvider;
 
     /// <param name="rules">
@@ -56,12 +57,18 @@ public sealed class ScanEngine
     /// ("Temporary file") is registered ahead of staleness ("Not opened in 3 years"), both being true
     /// of the same file but only one of them being the reason a reader needs.
     /// </param>
+    /// <param name="duplicateSweep">
+    /// Not one of the rules, and it could not be: a rule sees one file, and no file can be a duplicate
+    /// on its own. It runs once the results are down, which is the earliest moment at which the question
+    /// can even be asked.
+    /// </param>
     public ScanEngine(
         IFileSource fileSource,
         IFileContentReader contentReader,
         IScanResultStore resultStore,
         IEnumerable<IClassificationRule> rules,
         IEnumerable<IPiiDetector> detectors,
+        DuplicateFileSweep duplicateSweep,
         TimeProvider timeProvider)
     {
         _fileSource = fileSource;
@@ -69,6 +76,7 @@ public sealed class ScanEngine
         _resultStore = resultStore;
         _rules = rules.ToList();
         _detectors = detectors.ToList();
+        _duplicateSweep = duplicateSweep;
         _timeProvider = timeProvider;
     }
 
@@ -118,6 +126,16 @@ public sealed class ScanEngine
             walk.Cancel();
             await walking;
         }
+
+        // Only now can this question be asked. Until the last file was walked, any two files still to
+        // come might have been copies of each other — and by now every path and size is on disk, where
+        // the sweep can group them without pulling the tree back into memory.
+        DuplicateSweepResult duplicates = await _duplicateSweep.SweepAsync(
+            startedReport.Id,
+            errors.Enqueue,
+            cancellationToken);
+
+        summary.AddDuplicatesMarkedForDeletion(duplicates);
 
         var completedReport = startedReport with
         {
