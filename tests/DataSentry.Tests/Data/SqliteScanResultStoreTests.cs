@@ -147,6 +147,63 @@ public class SqliteScanResultStoreTests
         Assert.That(storedReports.Select(report => report.Id), Is.EqualTo(new[] { newerReport.Id, olderReport.Id }));
     }
 
+    [Test]
+    public async Task MarkRecycled_AFileThatWasSentToTheRecycleBin_StopsBeingPendingAndStaysThatWayOnReload()
+    {
+        ScanReport report = CreateReport(Guid.NewGuid(), completedUtc: DateTimeOffset.UtcNow);
+        DateTimeOffset recycledUtc = new(2026, 7, 11, 9, 0, 0, TimeSpan.Zero);
+
+        await _store.SaveReportAsync(report, ToAsyncEnumerable(
+            CreateResult(@"C:\temp\a.tmp", Recommendation.Delete),
+            CreateResult(@"C:\temp\b.tmp", Recommendation.Delete)));
+
+        Assert.That(await _store.CountPendingDeletionAsync(report.Id), Is.EqualTo(2));
+
+        await _store.MarkRecycledAsync(report.Id, [@"C:\temp\a.tmp"], recycledUtc);
+
+        List<FileScanResult> storedResults = await _store.GetResultsAsync(report.Id).ToListAsync();
+
+        int stillPending = await _store.CountPendingDeletionAsync(report.Id);
+        IReadOnlyList<string> pendingPaths = await _store.GetPathsPendingDeletionAsync(report.Id, skip: 0, take: 10);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stillPending, Is.EqualTo(1));
+
+            Assert.That(
+                pendingPaths,
+                Is.EqualTo(new[] { @"C:\temp\b.tmp" }),
+                "a file already in the recycle bin must never be offered for deletion a second time");
+
+            // The row still sits under the heading that condemned it, and the summary still counts it —
+            // but it no longer advises a deletion that has already happened. That is the whole reason
+            // this is a field of its own rather than a fourth recommendation.
+            FileScanResult recycled = storedResults.Single(result => result.FilePath == @"C:\temp\a.tmp");
+
+            Assert.That(recycled.Recommendation, Is.EqualTo(Recommendation.Delete));
+            Assert.That(recycled.RecycledUtc, Is.EqualTo(recycledUtc));
+            Assert.That(recycled.CanBeRecycled, Is.False);
+        });
+    }
+
+    [Test]
+    public async Task MarkRecycled_AFileThatNeedsReview_IsIgnoredRatherThanMarked()
+    {
+        ScanReport report = CreateReport(Guid.NewGuid(), completedUtc: DateTimeOffset.UtcNow);
+
+        await _store.SaveReportAsync(report, ToAsyncEnumerable(
+            CreateResult(@"C:\hr\medical-leave.xlsx", Recommendation.Review)));
+
+        // Nothing should ever ask for this. But "should" is not a guarantee, and a store that would
+        // happily stamp "sent to the recycle bin" onto a file full of health data is one bug away from
+        // telling the user a lie about their own personal data.
+        await _store.MarkRecycledAsync(report.Id, [@"C:\hr\medical-leave.xlsx"], DateTimeOffset.UtcNow);
+
+        FileScanResult stored = (await _store.GetResultsAsync(report.Id).ToListAsync()).Single();
+
+        Assert.That(stored.RecycledUtc, Is.Null);
+    }
+
     private static ScanReport CreateReport(Guid id, DateTimeOffset completedUtc) => new(
         id,
         @"C:\shared",

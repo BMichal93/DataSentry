@@ -223,6 +223,62 @@ public sealed class SqliteScanResultStore : IScanResultStore
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<int> CountPendingDeletionAsync(Guid reportId, CancellationToken cancellationToken = default)
+    {
+        await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await PendingDeletion(context, reportId).CountAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<string>> GetPathsPendingDeletionAsync(
+        Guid reportId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await PendingDeletion(context, reportId)
+            .OrderBy(result => result.Id)
+            .Skip(skip)
+            .Take(take)
+            .Select(result => result.FilePath)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task MarkRecycledAsync(
+        Guid reportId,
+        IReadOnlyList<string> filePaths,
+        DateTimeOffset recycledUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (filePaths.Count == 0)
+        {
+            return;
+        }
+
+        await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // The verdict is in the WHERE clause, not merely in the caller's good intentions. Nothing that
+        // was not condemned can be marked as deleted, however it got into this list.
+        await PendingDeletion(context, reportId)
+            .Where(result => filePaths.Contains(result.FilePath))
+            .ExecuteUpdateAsync(
+                result => result.SetProperty(recycled => recycled.RecycledUtc, recycledUtc),
+                cancellationToken);
+    }
+
+    /// <summary>
+    /// The files this report condemned and nobody has deleted yet — the one definition of "deletable",
+    /// written once so that the count the user confirms and the paths that are actually recycled can
+    /// never disagree about what it means.
+    /// </summary>
+    private static IQueryable<FileScanResultEntity> PendingDeletion(DataSentryDbContext context, Guid reportId) =>
+        context.Results.Where(result =>
+            result.ReportId == reportId &&
+            result.Recommendation == Recommendation.Delete &&
+            result.RecycledUtc == null);
+
     public async Task DeleteReportAsync(Guid reportId, CancellationToken cancellationToken = default)
     {
         await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);

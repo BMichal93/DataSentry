@@ -27,7 +27,7 @@ public class ResultsViewModelTests
         var store = new InMemoryScanResultStore();
         Guid reportId = SeedReport(store, DeleteResults(fileCount));
 
-        var results = new ResultsViewModel(store);
+        ResultsViewModel results = Build(store);
 
         await results.LoadAsync(reportId, SummaryOf(deletable: fileCount));
 
@@ -52,7 +52,7 @@ public class ResultsViewModelTests
             ResultAt("C:/work/keep.docx", Recommendation.Retain)
         ]);
 
-        var results = new ResultsViewModel(store);
+        ResultsViewModel results = Build(store);
 
         await results.LoadAsync(reportId, new ScanSummary(3, 0, 1, 0, 1));
 
@@ -74,7 +74,7 @@ public class ResultsViewModelTests
             ResultAt("C:/work/keep.docx", Recommendation.Retain)
         ]);
 
-        var results = new ResultsViewModel(store);
+        ResultsViewModel results = Build(store);
 
         await results.LoadAsync(reportId, new ScanSummary(2, 0, 1, 0, 0));
 
@@ -87,7 +87,7 @@ public class ResultsViewModelTests
         var store = new InMemoryScanResultStore();
         Guid reportId = SeedReport(store, DeleteResults(250));
 
-        var results = new ResultsViewModel(store);
+        ResultsViewModel results = Build(store);
         await results.LoadAsync(reportId, SummaryOf(deletable: 250));
 
         await results.NextPageAsync();
@@ -122,7 +122,7 @@ public class ResultsViewModelTests
 
         Guid reportId = SeedReport(store, [withPii]);
 
-        var results = new ResultsViewModel(store);
+        ResultsViewModel results = Build(store);
         await results.LoadAsync(reportId, new ScanSummary(1, 0, 0, 0, 1));
 
         FileRowViewModel row = results.Rows.Single();
@@ -153,13 +153,258 @@ public class ResultsViewModelTests
 
         Guid reportId = SeedReport(store, [withMixedPii]);
 
-        var results = new ResultsViewModel(store);
+        ResultsViewModel results = Build(store);
         await results.LoadAsync(reportId, new ScanSummary(1, 0, 0, 0, 1));
 
         // Special category data is why this file needs a human — so it is the first thing said about
         // it, in the same priority order the recommendation itself was decided by.
         Assert.That(results.Rows.Single().WhyItMatters, Does.StartWith("Likely health, beliefs or other special-category data"));
     }
+
+    [Test]
+    public async Task DeleteSuggested_AsksInPlainWordsWithTheRealNumberBeforeAnythingIsDestroyed()
+    {
+        var store = new InMemoryScanResultStore();
+        Guid reportId = SeedReport(store, DeleteResults(12));
+
+        var recycler = new FakeFileRecycler();
+        var confirmation = new FakeConfirmationPrompt(answer: true);
+
+        ResultsViewModel results = Build(store, recycler, confirmation);
+        await results.LoadAsync(reportId, SummaryOf(deletable: 12));
+
+        await results.DeleteSuggestedAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                confirmation.LastQuestion,
+                Is.EqualTo("Send 12 files to the recycle bin?"),
+                "the number is what makes it a decision rather than a leap of faith");
+
+            Assert.That(recycler.Recycled, Has.Count.EqualTo(12));
+            Assert.That(results.DeletionOutcome, Is.EqualTo("12 files sent to the recycle bin."));
+        });
+    }
+
+    [Test]
+    public async Task DeleteSuggested_TheUserSaysNo_DestroysNothingAtAll()
+    {
+        var store = new InMemoryScanResultStore();
+        Guid reportId = SeedReport(store, DeleteResults(12));
+
+        var recycler = new FakeFileRecycler();
+
+        ResultsViewModel results = Build(store, recycler, new FakeConfirmationPrompt(answer: false));
+        await results.LoadAsync(reportId, SummaryOf(deletable: 12));
+
+        await results.DeleteSuggestedAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(recycler.RecycleAttempts, Is.Empty, "nothing is deleted without explicit confirmation");
+            Assert.That(results.DeletableCount, Is.EqualTo(12), "and the files are all still there to delete");
+        });
+    }
+
+    [Test]
+    public async Task DeleteSuggested_AFileTheUserUnticked_IsSparedAndTheRestStillGo()
+    {
+        var store = new InMemoryScanResultStore();
+        Guid reportId = SeedReport(store, DeleteResults(3));
+
+        var recycler = new FakeFileRecycler();
+        var confirmation = new FakeConfirmationPrompt(answer: true);
+
+        ResultsViewModel results = Build(store, recycler, confirmation);
+        await results.LoadAsync(reportId, SummaryOf(deletable: 3));
+
+        // The exclusion model: every deletable row arrives ticked, and unticking one spares it. The user
+        // is confirming a recommendation, not assembling one out of ten thousand checkboxes.
+        FileRowViewModel spared = results.Rows.Single(row => row.FileName == "junk-1.tmp");
+        spared.IsSelectedForDeletion = false;
+
+        Assert.That(results.DeletableCount, Is.EqualTo(2), "the count follows the ticks, before anything is asked");
+
+        await results.DeleteSuggestedAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(confirmation.LastQuestion, Is.EqualTo("Send 2 files to the recycle bin?"));
+
+            Assert.That(
+                recycler.Recycled,
+                Is.EqualTo(new[] { "C:/work/junk-0.tmp", "C:/work/junk-2.tmp" }),
+                "the unticked file was never even offered to the recycler");
+        });
+    }
+
+    [Test]
+    public async Task DeleteSuggested_AFileUntickedOnOnePage_IsStillSparedAfterPagingAwayAndBack()
+    {
+        var store = new InMemoryScanResultStore();
+        Guid reportId = SeedReport(store, DeleteResults(150));
+
+        var recycler = new FakeFileRecycler();
+
+        ResultsViewModel results = Build(store, recycler, new FakeConfirmationPrompt(answer: true));
+        await results.LoadAsync(reportId, SummaryOf(deletable: 150));
+
+        results.Rows.Single(row => row.FileName == "junk-7.tmp").IsSelectedForDeletion = false;
+
+        // The rows are rebuilt from the store on every page turn, so a decision remembered on a row
+        // would be forgotten here. It is remembered on the view model instead.
+        await results.NextPageAsync();
+        await results.PreviousPageAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(results.Rows.Single(row => row.FileName == "junk-7.tmp").IsSelectedForDeletion, Is.False);
+            Assert.That(results.DeletableCount, Is.EqualTo(149));
+        });
+
+        await results.DeleteSuggestedAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(recycler.Recycled, Has.Count.EqualTo(149));
+            Assert.That(recycler.RecycleAttempts, Has.None.EqualTo("C:/work/junk-7.tmp"));
+        });
+    }
+
+    [Test]
+    public async Task DeleteSuggested_AFileThatWillNotGo_IsCountedAndListedWithoutStoppingTheRest()
+    {
+        var store = new InMemoryScanResultStore();
+        Guid reportId = SeedReport(store, DeleteResults(5));
+
+        var recycler = new FakeFileRecycler();
+        recycler.Refuse("C:/work/junk-2.tmp", "It is open in another program.");
+
+        ResultsViewModel results = Build(store, recycler, new FakeConfirmationPrompt(answer: true));
+        await results.LoadAsync(reportId, SummaryOf(deletable: 5));
+
+        await results.DeleteSuggestedAsync();
+
+        Assert.Multiple(() =>
+        {
+            // A locked file is reported exactly as an unreadable one is during a scan: counted, named,
+            // and never a reason to abandon the other four.
+            Assert.That(recycler.Recycled, Has.Count.EqualTo(4));
+            Assert.That(results.HasDeletionFailures, Is.True);
+
+            Assert.That(results.DeletionFailures.Single().FilePath, Is.EqualTo("C:/work/junk-2.tmp"));
+            Assert.That(results.DeletionFailures.Single().Reason, Is.EqualTo("It is open in another program."));
+
+            Assert.That(
+                results.DeletionOutcome,
+                Is.EqualTo("4 files sent to the recycle bin. 1 file could not be deleted."));
+
+            // It would not go, so it is still there to try again — the report has not pretended otherwise.
+            Assert.That(results.DeletableCount, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task DeleteSuggested_AFileThatNeedsReview_CanNeverReachTheRecyclerEvenWhenAskedTo()
+    {
+        var store = new InMemoryScanResultStore();
+
+        Guid reportId = SeedReport(store,
+        [
+            ResultAt("C:/hr/medical-leave.xlsx", Recommendation.Review),
+            ResultAt("C:/work/payroll.xlsx", Recommendation.Retain),
+            ResultAt("C:/work/junk.tmp", Recommendation.Delete)
+        ]);
+
+        var recycler = new FakeFileRecycler();
+
+        ResultsViewModel results = Build(store, recycler, new FakeConfirmationPrompt(answer: true));
+        await results.LoadAsync(reportId, new ScanSummary(3, 0, 1, 0, 1));
+
+        // The user is looking at the review heading, where the personal data is, and asks to delete. The
+        // rows here carry no checkbox — but the test does not go through the checkbox, it goes straight
+        // at the method, because the guarantee has to hold even if the view is wrong.
+        await results.ShowAsync(Recommendation.Review);
+        await results.DeleteSuggestedAsync();
+
+        Assert.That(recycler.RecycleAttempts, Is.Empty, "a Review file is not the user's to delete on a scan's say-so");
+
+        // And on the heading where deleting is legitimate, only the condemned file goes: the review file
+        // and the retained one are unreachable from here, because the paths come from the store's
+        // pending-deletion query and not from the screen.
+        await results.ShowAsync(Recommendation.Delete);
+        await results.DeleteSuggestedAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(recycler.Recycled, Is.EqualTo(new[] { "C:/work/junk.tmp" }));
+
+            Assert.That(
+                results.Rows.Where(row => row.CanBeDeleted).Select(row => row.FileName),
+                Is.Empty,
+                "and once it has gone there is nothing left on this heading to delete");
+        });
+    }
+
+    [Test]
+    public async Task DeleteSuggested_AfterTheFilesHaveGone_TheRowsStopSayingDeleteAsIfNothingHappened()
+    {
+        var store = new InMemoryScanResultStore();
+        Guid reportId = SeedReport(store, DeleteResults(2));
+
+        ResultsViewModel results = Build(store, new FakeFileRecycler(), new FakeConfirmationPrompt(answer: true));
+        await results.LoadAsync(reportId, SummaryOf(deletable: 2));
+
+        await results.DeleteSuggestedAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                results.Rows.Select(row => row.RecommendationText),
+                Is.All.EqualTo("Sent to recycle bin"),
+                "a row still saying Delete tells the user their decision did not take");
+
+            Assert.That(results.Rows, Has.None.Matches<FileRowViewModel>(row => row.CanBeDeleted));
+            Assert.That(results.DeletableCount, Is.Zero);
+            Assert.That(results.CanDelete, Is.False);
+        });
+
+        // And it is the report that remembers, not the screen: reopened tomorrow, the row still says so.
+        FileScanResult stored = store.ResultsOf(reportId).First();
+
+        Assert.That(stored.RecycledUtc, Is.EqualTo(Now));
+    }
+
+    [Test]
+    public async Task Open_ARowThatNeedsReview_OpensTheFileItself()
+    {
+        var store = new InMemoryScanResultStore();
+        Guid reportId = SeedReport(store, [ResultAt("C:/hr/medical-leave.xlsx", Recommendation.Review)]);
+
+        var opener = new FakeFileOpener();
+
+        ResultsViewModel results = Build(store, fileOpener: opener);
+        await results.LoadAsync(reportId, new ScanSummary(1, 0, 0, 0, 1));
+
+        results.Rows.Single().OpenCommand.Execute(null);
+
+        // The compliant way to inspect a flagged file: the report never prints the personal data, so the
+        // user reads it where it already lives, behind the access controls that already guard it.
+        Assert.That(opener.Opened, Is.EqualTo(new[] { "C:/hr/medical-leave.xlsx" }));
+    }
+
+    private static ResultsViewModel Build(
+        InMemoryScanResultStore store,
+        FakeFileRecycler? recycler = null,
+        FakeConfirmationPrompt? confirmation = null,
+        FakeFileOpener? fileOpener = null) =>
+        new(
+            store,
+            recycler ?? new FakeFileRecycler(),
+            fileOpener ?? new FakeFileOpener(),
+            confirmation ?? new FakeConfirmationPrompt(answer: false),
+            new FixedTimeProvider(Now));
 
     private static IReadOnlyList<FileScanResult> DeleteResults(int count) =>
         Enumerable

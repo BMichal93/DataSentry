@@ -2,6 +2,7 @@ using DataSentry.Core.Classification;
 using DataSentry.Core.Detection;
 using DataSentry.Core.Scanning;
 using DataSentry.UI.Dialogs;
+using DataSentry.UI.FileActions;
 using DataSentry.UI.Scheduling;
 using DataSentry.UI.ViewModels;
 using DataSentry.UI.Views;
@@ -64,8 +65,25 @@ public static class ServiceCollectionExtensions
         // fires whether or not anyone has the app open.
         services.AddSingleton<IScanScheduler, WindowsTaskSchedulerScanScheduler>();
 
+        // The question that stands between a recommendation and a deleted file. Every path to the
+        // recycle bin runs through this, and in the tests it is a fake that can be told to say no.
+        services.AddSingleton<IConfirmationPrompt, WindowsConfirmationPrompt>();
+
+        // The only class in DataSentry that can destroy anything — and the only one that can open a
+        // flagged file so the user can read what is actually in it, which is the compliant alternative
+        // to a report that prints personal data on the screen. Both are conversations with the Windows
+        // shell, and both stop here, so that no view model ever has one.
+        services.AddSingleton<IFileRecycler, RecycleBinFileRecycler>();
+        services.AddSingleton<IFileOpener, ShellFileOpener>();
+
         services.AddSingleton<ScheduleViewModel>();
-        services.AddSingleton<ResultsViewModel>();
+
+        // Transient, because Search and Reports each hold their own result list: browsing an old
+        // report must never disturb the scan sitting on the other tab.
+        services.AddTransient<ResultsViewModel>();
+
+        services.AddSingleton<SearchViewModel>();
+        services.AddSingleton<ReportsViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

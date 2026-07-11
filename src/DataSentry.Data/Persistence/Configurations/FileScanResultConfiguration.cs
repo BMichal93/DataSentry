@@ -20,6 +20,11 @@ internal sealed class FileScanResultConfiguration : IEntityTypeConfiguration<Fil
 
         builder.HasIndex(result => result.ReportId);
 
+        // The detail list and the delete flow both ask the same question — "this report's files, under
+        // this one verdict" — and both ask it of a table that may hold a million rows of which they want
+        // a hundred. This is the index that lets SQLite answer without reading the other 999,900.
+        builder.HasIndex(result => new { result.ReportId, result.Recommendation });
+
         builder
             .HasMany(result => result.Findings)
             .WithOne()

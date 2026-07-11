@@ -96,6 +96,54 @@ public interface IScanResultStore
         IReadOnlyList<DuplicateVerdict> verdicts,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// How many files in the report DataSentry suggested deleting and nobody has deleted yet.
+    /// </summary>
+    /// <remarks>
+    /// The number the user is asked to confirm — "Send 12 files to the recycle bin?" — and so it is
+    /// counted rather than inferred. The report's summary knows how many files were <i>condemned</i>,
+    /// which stops being the same number the moment the first one is actually deleted; asking the store
+    /// is the only way to get a count that is still true on the second run.
+    /// </remarks>
+    Task<int> CountPendingDeletionAsync(Guid reportId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The paths of files still awaiting deletion: from <paramref name="skip"/> onwards, at most
+    /// <paramref name="take"/> of them, in the order they were scanned.
+    /// </summary>
+    /// <remarks>
+    /// Paged, and not returned in one list, for the reason everything here is paged: a scan of a shared
+    /// drive can condemn a million files, and a delete that first gathered a million paths into memory
+    /// would undo — on the last screen, at the last moment — the one thing the engine has refused to do
+    /// its whole life.
+    ///
+    /// Only files whose recommendation is still <see cref="Recommendation.Delete"/> are ever returned.
+    /// A file that needs review cannot be reached through this method, which is the point of it: the
+    /// delete flow's entire supply of paths comes from here, so a file that never appears here can
+    /// never be deleted, whatever the screen above it believes.
+    /// </remarks>
+    Task<IReadOnlyList<string>> GetPathsPendingDeletionAsync(
+        Guid reportId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records that these files were sent to the recycle bin, so the report stops advising a deletion
+    /// that has already happened.
+    /// </summary>
+    /// <remarks>
+    /// Files whose recommendation is not <see cref="Recommendation.Delete"/> are ignored rather than
+    /// marked. The caller is not supposed to be able to get one this far — but "not supposed to" is not
+    /// a guarantee, and a store that would happily stamp "sent to the recycle bin" onto a file holding
+    /// health data is one bug away from telling the user a lie about their own personal data.
+    /// </remarks>
+    Task MarkRecycledAsync(
+        Guid reportId,
+        IReadOnlyList<string> filePaths,
+        DateTimeOffset recycledUtc,
+        CancellationToken cancellationToken = default);
+
     Task DeleteReportAsync(Guid reportId, CancellationToken cancellationToken = default);
 
     /// <summary>

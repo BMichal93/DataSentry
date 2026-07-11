@@ -4,5 +4,129 @@
     <!-- No StartupUri: the main window is resolved from the container in App.OnStartup, so that it is
          handed its view model rather than reaching out for one. -->
     <Application.Resources>
+
+        <!-- One palette for the whole application. The three verdict colours are the only loud thing
+             on screen; everything else stays in greys so that the verdicts are what the eye finds. -->
+        <SolidColorBrush x:Key="TextBrush" Color="#FF202124" />
+        <SolidColorBrush x:Key="SecondaryTextBrush" Color="#FF5F6368" />
+        <SolidColorBrush x:Key="HintTextBrush" Color="#FF9AA0A6" />
+        <SolidColorBrush x:Key="HairlineBrush" Color="#FFDADCE0" />
+        <SolidColorBrush x:Key="HoverBrush" Color="#FFF1F3F4" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF1A73E8" />
+        <SolidColorBrush x:Key="AccentTintBrush" Color="#FFE8F0FE" />
+        <SolidColorBrush x:Key="DangerBrush" Color="#FFB3261E" />
+        <SolidColorBrush x:Key="SafeBrush" Color="#FF1E8E3E" />
+
+        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
+
+        <Style x:Key="SecondaryText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <!-- A flat button drawn from scratch: the default WPF chrome is the one thing every restyled
+             control here is trying not to look like. -->
+        <ControlTemplate x:Key="FlatButtonTemplate" TargetType="Button">
+            <Border x:Name="Surface"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="18"
+                    Padding="{TemplateBinding Padding}">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Surface" Property="Opacity" Value="0.9" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="Surface" Property="Opacity" Value="0.45" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- The one loud button on any screen: Scan, Schedule — the action the screen exists for. -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Template" Value="{StaticResource FlatButtonTemplate}" />
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="22,8" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- The quiet companion to PrimaryButton: Cancel, Remove, Back. -->
+        <Style x:Key="QuietButton" TargetType="Button">
+            <Setter Property="Template" Value="{StaticResource FlatButtonTemplate}" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16,7" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- A round hover-only button around a single glyph: the folder, the clock. The icon carries
+             the meaning; the button stays invisible until pointed at. -->
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="18">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{StaticResource HoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The filter chips over the result list: Needs review / Suggested for deletion / Keep. -->
+        <Style x:Key="FilterChip" TargetType="Button">
+            <Setter Property="Template" Value="{StaticResource FlatButtonTemplate}" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- Plain blue text that acts like a button: paging, "show more". -->
+        <Style x:Key="LinkButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter Margin="{TemplateBinding Padding}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource HintTextBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
     </Application.Resources>
 </Application>

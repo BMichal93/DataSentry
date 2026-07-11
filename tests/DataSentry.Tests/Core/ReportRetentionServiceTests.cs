@@ -63,5 +63,14 @@ public class ReportRetentionServiceTests
 
         public Task ApplyDuplicateVerdictsAsync(Guid reportId, IReadOnlyList<DuplicateVerdict> verdicts, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<int> CountPendingDeletionAsync(Guid reportId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<string>> GetPathsPendingDeletionAsync(Guid reportId, int skip, int take, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task MarkRecycledAsync(Guid reportId, IReadOnlyList<string> filePaths, DateTimeOffset recycledUtc, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 }

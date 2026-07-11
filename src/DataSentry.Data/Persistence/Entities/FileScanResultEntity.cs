@@ -25,5 +25,8 @@ public sealed class FileScanResultEntity
 
     public string Reason { get; set; } = string.Empty;
 
+    /// <summary>When the user sent this file to the recycle bin. Null while it is still on disk.</summary>
+    public DateTimeOffset? RecycledUtc { get; set; }
+
     public List<PiiFindingEntity> Findings { get; set; } = [];
 }
