@@ -221,14 +221,81 @@ public class MainViewModelTests
         Assert.That(viewModel.IsDetailVisible, Is.False);
     }
 
+    [Test]
+    public async Task ScanAsync_WhenItFinishes_TheScanJoinsTheHistoryList()
+    {
+        MainViewModel viewModel = BuildViewModel([FileAt("C:/work/report.docx", sizeBytes: 4_096)]);
+
+        Assert.That(viewModel.HasPastScans, Is.False);
+
+        viewModel.FolderPath = "C:/work";
+        await viewModel.ScanAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.PastScans, Has.Count.EqualTo(1));
+            Assert.That(viewModel.PastScans[0].Description, Does.Contain("C:/work"));
+            Assert.That(viewModel.PastScans[0].Description, Does.Contain("1 file"));
+
+            // The scan just shown is not also "selected history" — the list is there for going back.
+            Assert.That(viewModel.SelectedPastScan, Is.Null);
+        });
+    }
+
+    [Test]
+    public async Task SelectedPastScan_ChoosingAnEarlierScan_ShowsItsReportAgain()
+    {
+        MainViewModel viewModel = BuildViewModel(
+        [
+            FileAt("C:/work/export.tmp", sizeBytes: 4_096),
+            FileAt("C:/work/report.docx", sizeBytes: 4_096)
+        ]);
+
+        viewModel.FolderPath = "C:/work";
+        await viewModel.ScanAsync();
+
+        // The user walks away: new folder typed, nothing scanned yet.
+        viewModel.FolderPath = "C:/somewhere-else";
+
+        viewModel.SelectedPastScan = viewModel.PastScans[0];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.Status, Is.EqualTo("2 files scanned, 1 suggested for deletion, nothing needs review."));
+            Assert.That(viewModel.FolderPath, Is.EqualTo("C:/work"), "coming back to a report brings its folder with it");
+            Assert.That(viewModel.HasResults, Is.True);
+        });
+    }
+
+    [Test]
+    public async Task LoadAsync_OnStartup_FillsTheHistoryFromTheStore()
+    {
+        var store = new InMemoryScanResultStore();
+
+        await store.SaveReportAsync(
+            new ScanReport(Guid.NewGuid(), "C:/archive", Now.AddDays(-3), Now.AddDays(-3), new ScanSummary(5, 0, 2, 0, 1), []),
+            Array.Empty<FileScanResult>().ToAsyncEnumerable());
+
+        MainViewModel viewModel = BuildViewModel([], store: store);
+
+        await viewModel.LoadAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.HasPastScans, Is.True);
+            Assert.That(viewModel.PastScans[0].Description, Does.Contain("C:/archive"));
+        });
+    }
+
     private static MainViewModel BuildViewModel(
         IReadOnlyList<FileMetadata> files,
         IReadOnlyDictionary<string, string?>? textByPath = null,
         IReadOnlyList<ScanError>? walkErrors = null,
         Action<FileMetadata>? onFileEnumerated = null,
-        string? pickedFolder = null)
+        string? pickedFolder = null,
+        InMemoryScanResultStore? store = null)
     {
-        var store = new InMemoryScanResultStore();
+        store ??= new InMemoryScanResultStore();
         var contentReader = new FakeFileContentReader(textByPath);
 
         var scanEngine = new ScanEngine(
@@ -240,7 +307,7 @@ public class MainViewModelTests
             new DuplicateFileSweep(store, contentReader),
             new FixedTimeProvider(Now));
 
-        return new MainViewModel(scanEngine, new ResultsViewModel(store), new FakeFolderPicker(pickedFolder));
+        return new MainViewModel(scanEngine, store, new ResultsViewModel(store), new FakeFolderPicker(pickedFolder));
     }
 
     private static FileMetadata FileAt(string filePath, long sizeBytes)

@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using DataSentry.Core.Abstractions;
 using DataSentry.Core.Models;
 using DataSentry.Core.Scanning;
 using DataSentry.UI.Dialogs;
@@ -29,18 +31,25 @@ public sealed class MainViewModel : ObservableObject
     private const int MaxUnreadableFilesListed = 100;
 
     private readonly ScanEngine _scanEngine;
+    private readonly IScanResultStore _resultStore;
     private readonly IFolderPicker _folderPicker;
 
     private CancellationTokenSource? _scanCancellation;
     private ScanReport? _report;
+    private PastScanViewModel? _selectedPastScan;
     private string _folderPath = string.Empty;
     private string _status = "Pick a folder and scan it.";
     private bool _isScanning;
     private bool _isDetailVisible;
 
-    public MainViewModel(ScanEngine scanEngine, ResultsViewModel results, IFolderPicker folderPicker)
+    public MainViewModel(
+        ScanEngine scanEngine,
+        IScanResultStore resultStore,
+        ResultsViewModel results,
+        IFolderPicker folderPicker)
     {
         _scanEngine = scanEngine;
+        _resultStore = resultStore;
         _folderPicker = folderPicker;
 
         Results = results;
@@ -62,6 +71,35 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The detail list. Empty until the user asks to see it.</summary>
     public ResultsViewModel Results { get; }
+
+    /// <summary>
+    /// The scans still in the database, newest first. Reports are purged after 30 days, so this is the
+    /// last month of history — the purge bounds the list, not the screen.
+    /// </summary>
+    public ObservableCollection<PastScanViewModel> PastScans { get; } = [];
+
+    public bool HasPastScans => PastScans.Count > 0;
+
+    /// <summary>
+    /// The earlier scan the user picked from the history list. Choosing one shows its report exactly
+    /// as it was shown the day it ran — no query, because the summary travels on the report itself.
+    /// </summary>
+    public PastScanViewModel? SelectedPastScan
+    {
+        get => _selectedPastScan;
+        set
+        {
+            Set(ref _selectedPastScan, value);
+
+            if (value is null)
+            {
+                return;
+            }
+
+            FolderPath = value.Report.RootPath;
+            ShowReport(value.Report);
+        }
+    }
 
     public string FolderPath
     {
@@ -125,6 +163,12 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Fills the history list from the store. Called once at startup, by the composition root — the
+    /// code-behind assigns a DataContext and does nothing else, so it cannot be the one to call this.
+    /// </summary>
+    public Task LoadAsync() => RefreshPastScansAsync();
+
+    /// <summary>
     /// Asks the user for a folder. What opens to ask them is not this class's business — that is the
     /// whole reason <see cref="IFolderPicker"/> exists.
     /// </summary>
@@ -161,6 +205,7 @@ public sealed class MainViewModel : ObservableObject
                 _scanCancellation.Token);
 
             ShowReport(report);
+            await RefreshPastScansAsync();
         }
         catch (OperationCanceledException)
         {
@@ -215,6 +260,25 @@ public sealed class MainViewModel : ObservableObject
     }
 
     private void HideDetail() => IsDetailVisible = false;
+
+    private async Task RefreshPastScansAsync()
+    {
+        IReadOnlyList<ScanReport> reports = await _resultStore.ListReportsAsync();
+
+        // The selection is cleared through the field, not the property: a refresh must never re-open
+        // a report the user did not just choose.
+        _selectedPastScan = null;
+        Notify(nameof(SelectedPastScan));
+
+        PastScans.Clear();
+
+        foreach (ScanReport report in reports)
+        {
+            PastScans.Add(new PastScanViewModel(report));
+        }
+
+        Notify(nameof(HasPastScans));
+    }
 
     /// <summary>"482 files, 3.1 GB reclaimable, 7 files need review."</summary>
     private static string Describe(ScanReport report)
