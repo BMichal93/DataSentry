@@ -51,6 +51,14 @@ Keep the layers physically separate (separate projects) and let dependencies poi
 
 `DataSentry.Core` is the heart and knows nothing about the file system or the UI. It talks to abstractions (`IFileSource`, `IScanResultStore`) that `DataSentry.Data` implements. This is what makes the rules unit-testable without touching a disk.
 
+### Folders
+
+**Classes do not lie loose in the root of a project.** Group them into folders by what they are *for*, and let the namespace follow the folder. A reader should be able to answer "what is in this project?" from the folder list alone, without opening a file.
+
+Group by concern, not by technical suffix. `Persistence/Context` (the `DbContext`, its design-time factory, where the database file lives, how it is migrated on startup) is a concern. `Helpers`, `Managers`, `Utils` are not — they are a shrug in folder form, and anything landing in one is a sign the class has no home because it has no clear job.
+
+A folder needs at least two classes to be worth creating. The one exception is a project's composition root (`ServiceCollectionExtensions`), which is the entry point to the whole project and belongs at its root.
+
 ## Testing
 
 **NUnit.** Business rules in `Core` are the priority — every classification rule gets tests, including the edge cases (empty file, no extension, unreadable file, file locked by another process).
