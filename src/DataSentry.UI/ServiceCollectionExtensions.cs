@@ -2,6 +2,7 @@ using DataSentry.Core.Classification;
 using DataSentry.Core.Detection;
 using DataSentry.Core.Scanning;
 using DataSentry.UI.Dialogs;
+using DataSentry.UI.Scheduling;
 using DataSentry.UI.ViewModels;
 using DataSentry.UI.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,6 +60,11 @@ public static class ServiceCollectionExtensions
         // without a window standing behind it.
         services.AddSingleton<IFolderPicker, WindowsFolderPicker>();
 
+        // The other place the UI touches Windows: the scheduled scan lives in Task Scheduler, so it
+        // fires whether or not anyone has the app open.
+        services.AddSingleton<IScanScheduler, WindowsTaskSchedulerScanScheduler>();
+
+        services.AddSingleton<ScheduleViewModel>();
         services.AddSingleton<ResultsViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();

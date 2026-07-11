@@ -307,7 +307,12 @@ public class MainViewModelTests
             new DuplicateFileSweep(store, contentReader),
             new FixedTimeProvider(Now));
 
-        return new MainViewModel(scanEngine, store, new ResultsViewModel(store), new FakeFolderPicker(pickedFolder));
+        return new MainViewModel(
+            scanEngine,
+            store,
+            new ResultsViewModel(store),
+            new ScheduleViewModel(new FakeScanScheduler()),
+            new FakeFolderPicker(pickedFolder));
     }
 
     private static FileMetadata FileAt(string filePath, long sizeBytes)
