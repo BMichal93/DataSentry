@@ -8,6 +8,7 @@ using DataSentry.Core.Scanning;
 using DataSentry.Data;
 using DataSentry.UI;
 using DataSentry.UI.Dialogs;
+using DataSentry.UI.Scheduling;
 using DataSentry.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -76,6 +77,14 @@ public class CompositionRootTests
             Assert.That(_services.GetRequiredService<IFileContentReader>(), Is.Not.Null);
             Assert.That(_services.GetRequiredService<IScanResultStore>(), Is.Not.Null);
         });
+    }
+
+    [Test]
+    public void CompositionRoot_TheScanScheduler_IsTheRealWindowsTaskScheduler()
+    {
+        Assert.That(
+            _services.GetRequiredService<IScanScheduler>(),
+            Is.InstanceOf<WindowsTaskSchedulerScanScheduler>());
     }
 
     [Test]

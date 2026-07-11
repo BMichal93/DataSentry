@@ -46,6 +46,7 @@ public sealed class MainViewModel : ObservableObject
         ScanEngine scanEngine,
         IScanResultStore resultStore,
         ResultsViewModel results,
+        ScheduleViewModel schedule,
         IFolderPicker folderPicker)
     {
         _scanEngine = scanEngine;
@@ -53,11 +54,17 @@ public sealed class MainViewModel : ObservableObject
         _folderPicker = folderPicker;
 
         Results = results;
+        Schedule = schedule;
 
         BrowseCommand = new AsyncRelayCommand(PickFolderAsync);
         ScanCommand = new AsyncRelayCommand(ScanAsync, () => !string.IsNullOrWhiteSpace(FolderPath));
         CancelCommand = new RelayCommand(CancelScan, () => _scanCancellation is not null);
         ShowDetailCommand = new AsyncRelayCommand(ToggleDetailAsync, () => HasResults);
+
+        // The schedule needs a folder, and the folder lives here — which is why this command does too.
+        ScheduleScanCommand = new AsyncRelayCommand(
+            () => Schedule.ScheduleDailyAsync(FolderPath),
+            () => !string.IsNullOrWhiteSpace(FolderPath));
     }
 
     public ICommand BrowseCommand { get; }
@@ -71,6 +78,12 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The detail list. Empty until the user asks to see it.</summary>
     public ResultsViewModel Results { get; }
+
+    /// <summary>The daily scheduled scan, if the user has set one.</summary>
+    public ScheduleViewModel Schedule { get; }
+
+    /// <summary>Schedules the folder in the box for a daily scan at the hour in the schedule row.</summary>
+    public ICommand ScheduleScanCommand { get; }
 
     /// <summary>
     /// The scans still in the database, newest first. Reports are purged after 30 days, so this is the
@@ -163,10 +176,15 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Fills the history list from the store. Called once at startup, by the composition root — the
-    /// code-behind assigns a DataContext and does nothing else, so it cannot be the one to call this.
+    /// Fills the history list and reads back any existing schedule. Called once at startup, by the
+    /// composition root — the code-behind assigns a DataContext and does nothing else, so it cannot be
+    /// the one to call this.
     /// </summary>
-    public Task LoadAsync() => RefreshPastScansAsync();
+    public async Task LoadAsync()
+    {
+        await RefreshPastScansAsync();
+        await Schedule.LoadAsync();
+    }
 
     /// <summary>
     /// Asks the user for a folder. What opens to ask them is not this class's business — that is the
@@ -194,7 +212,10 @@ public sealed class MainViewModel : ObservableObject
         IsScanning = true;
         HideDetail();
 
-        var progress = new Progress<ScanProgress>(scanProgress =>
+        // Reported synchronously, not through Progress<T>: Progress posts its callbacks, and a posted
+        // callback can land after the scan has finished and overwrite the summary with "Scanned 3 of
+        // 3…". Status is a scalar property, and WPF marshals a scalar change onto the UI thread itself.
+        var progress = new SynchronousProgress<ScanProgress>(scanProgress =>
             Status = $"Scanned {scanProgress.FilesScanned:N0} of {scanProgress.FilesDiscovered:N0} files found so far…");
 
         try
@@ -260,6 +281,16 @@ public sealed class MainViewModel : ObservableObject
     }
 
     private void HideDetail() => IsDetailVisible = false;
+
+    /// <summary>
+    /// An <see cref="IProgress{T}"/> that reports on the caller's thread, now. The built-in
+    /// <see cref="Progress{T}"/> posts instead, and a post can arrive after the work is done — which
+    /// here means a progress line stamping over the finished summary.
+    /// </summary>
+    private sealed class SynchronousProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
+    }
 
     private async Task RefreshPastScansAsync()
     {
