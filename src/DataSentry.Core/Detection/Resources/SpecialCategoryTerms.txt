@@ -1,0 +1,156 @@
+# Terms that mark special category data under GDPR Art. 9 — the data whose misuse does a person the
+# most harm, and the only category in this tool that can never be auto-deleted.
+#
+# One term per line, English and Polish side by side, matched whole-word and case-insensitively.
+# Blank lines and lines starting with # are ignored.
+#
+# What belongs here: a term that is hard to write down about somebody without processing Art. 9 data.
+# What does not: a word that merely appears near such data. "Insurance" is a business; "health
+# insurance number" is a health record. The detector reports every file it hits, so a term that fires
+# on ordinary correspondence costs the user a review they did not need — and a tool that cries wolf
+# gets ignored, which is how the file that mattered goes unread.
+
+# --- Health ---
+medical record
+medical history
+health record
+patient
+diagnosis
+diagnosed with
+prescription
+prescribed
+sick leave
+sick note
+disability
+disabled
+blood type
+blood group
+ICD-10
+mental health
+pregnancy
+pregnant
+vaccination
+vaccinated
+hospitalisation
+hospitalization
+chronic illness
+HIV
+dokumentacja medyczna
+historia choroby
+karta pacjenta
+pacjent
+pacjenta
+diagnoza
+rozpoznanie
+recepta
+zwolnienie lekarskie
+niepełnosprawność
+orzeczenie o niepełnosprawności
+grupa krwi
+zdrowie psychiczne
+ciąża
+ciężarna
+szczepienie
+szczepienia
+choroba przewlekła
+
+# --- Biometric and genetic ---
+biometric
+biometric data
+fingerprint
+fingerprints
+facial recognition
+iris scan
+retina scan
+voiceprint
+DNA
+DNA sample
+genetic test
+genetic data
+genome
+dane biometryczne
+odcisk palca
+odciski palców
+rozpoznawanie twarzy
+skan tęczówki
+próbka DNA
+badanie genetyczne
+dane genetyczne
+
+# --- Racial or ethnic origin ---
+racial origin
+ethnic origin
+ethnicity
+race
+roma
+romani
+minority background
+pochodzenie rasowe
+pochodzenie etniczne
+narodowość etniczna
+mniejszość narodowa
+mniejszość etniczna
+
+# --- Political opinion ---
+political opinion
+political views
+political party
+party membership
+voted for
+electoral roll
+poglądy polityczne
+partia polityczna
+przynależność partyjna
+członek partii
+
+# --- Religious or philosophical belief ---
+religion
+religious belief
+religious affiliation
+catholic
+protestant
+orthodox christian
+muslim
+jewish
+hindu
+buddhist
+atheist
+baptised
+baptized
+parish
+wyznanie
+przekonania religijne
+wyznanie religijne
+katolik
+protestant
+prawosławny
+muzułmanin
+żyd
+ateista
+chrzest
+parafia
+
+# --- Trade union membership ---
+trade union
+trade union member
+union membership
+union dues
+związek zawodowy
+członek związku zawodowego
+składki związkowe
+przynależność związkowa
+
+# --- Sex life and sexual orientation ---
+sexual orientation
+sexual preference
+sex life
+homosexual
+heterosexual
+bisexual
+transgender
+LGBT
+orientacja seksualna
+życie seksualne
+homoseksualny
+biseksualny
+transpłciowy
