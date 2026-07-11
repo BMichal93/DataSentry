@@ -1,4 +1,4 @@
-namespace DataSentry.Data.Persistence.Entities;
+namespace DataSentry.Data.Persistence.Models;
 
 public sealed class ScanErrorEntity
 {

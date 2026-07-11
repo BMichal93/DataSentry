@@ -17,7 +17,7 @@ namespace DataSentry.Data.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.11");
 
-            modelBuilder.Entity("DataSentry.Data.Persistence.Entities.FileScanResultEntity", b =>
+            modelBuilder.Entity("DataSentry.Data.Persistence.Models.FileScanResultEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -63,7 +63,7 @@ namespace DataSentry.Data.Persistence.Migrations
                     b.ToTable("FileScanResults", (string)null);
                 });
 
-            modelBuilder.Entity("DataSentry.Data.Persistence.Entities.PiiFindingEntity", b =>
+            modelBuilder.Entity("DataSentry.Data.Persistence.Models.PiiFindingEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -95,7 +95,7 @@ namespace DataSentry.Data.Persistence.Migrations
                     b.ToTable("PiiFindings", (string)null);
                 });
 
-            modelBuilder.Entity("DataSentry.Data.Persistence.Entities.ScanErrorEntity", b =>
+            modelBuilder.Entity("DataSentry.Data.Persistence.Models.ScanErrorEntity", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
@@ -119,7 +119,7 @@ namespace DataSentry.Data.Persistence.Migrations
                     b.ToTable("ScanErrors", (string)null);
                 });
 
-            modelBuilder.Entity("DataSentry.Data.Persistence.Entities.ScanReportEntity", b =>
+            modelBuilder.Entity("DataSentry.Data.Persistence.Models.ScanReportEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -157,39 +157,39 @@ namespace DataSentry.Data.Persistence.Migrations
                     b.ToTable("ScanReports", (string)null);
                 });
 
-            modelBuilder.Entity("DataSentry.Data.Persistence.Entities.FileScanResultEntity", b =>
+            modelBuilder.Entity("DataSentry.Data.Persistence.Models.FileScanResultEntity", b =>
                 {
-                    b.HasOne("DataSentry.Data.Persistence.Entities.ScanReportEntity", null)
+                    b.HasOne("DataSentry.Data.Persistence.Models.ScanReportEntity", null)
                         .WithMany("Results")
                         .HasForeignKey("ReportId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("DataSentry.Data.Persistence.Entities.PiiFindingEntity", b =>
+            modelBuilder.Entity("DataSentry.Data.Persistence.Models.PiiFindingEntity", b =>
                 {
-                    b.HasOne("DataSentry.Data.Persistence.Entities.FileScanResultEntity", null)
+                    b.HasOne("DataSentry.Data.Persistence.Models.FileScanResultEntity", null)
                         .WithMany("Findings")
                         .HasForeignKey("FileScanResultId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("DataSentry.Data.Persistence.Entities.ScanErrorEntity", b =>
+            modelBuilder.Entity("DataSentry.Data.Persistence.Models.ScanErrorEntity", b =>
                 {
-                    b.HasOne("DataSentry.Data.Persistence.Entities.ScanReportEntity", null)
+                    b.HasOne("DataSentry.Data.Persistence.Models.ScanReportEntity", null)
                         .WithMany("Errors")
                         .HasForeignKey("ReportId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("DataSentry.Data.Persistence.Entities.FileScanResultEntity", b =>
+            modelBuilder.Entity("DataSentry.Data.Persistence.Models.FileScanResultEntity", b =>
                 {
                     b.Navigation("Findings");
                 });
 
-            modelBuilder.Entity("DataSentry.Data.Persistence.Entities.ScanReportEntity", b =>
+            modelBuilder.Entity("DataSentry.Data.Persistence.Models.ScanReportEntity", b =>
                 {
                     b.Navigation("Errors");
 

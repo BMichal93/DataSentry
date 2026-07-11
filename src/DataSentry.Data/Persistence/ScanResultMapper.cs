@@ -1,10 +1,10 @@
 using System.Linq;
 using DataSentry.Core.Models;
-using DataSentry.Data.Persistence.Entities;
+using DataSentry.Data.Persistence.Models;
 
 namespace DataSentry.Data.Persistence;
 
-/// <summary>Translates between the Core domain records and the EF entities, in both directions.</summary>
+/// <summary>Translates between the Core domain records and the persistence models, in both directions.</summary>
 internal static class ScanResultMapper
 {
     public static ScanReportEntity ToEntity(ScanReport report) => new()

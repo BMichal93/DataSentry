@@ -1,4 +1,4 @@
-using DataSentry.Data.Persistence.Entities;
+using DataSentry.Data.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace DataSentry.Data.Persistence;

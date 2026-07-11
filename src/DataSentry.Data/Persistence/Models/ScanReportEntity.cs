@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace DataSentry.Data.Persistence.Entities;
+namespace DataSentry.Data.Persistence.Models;
 
 /// <summary>The persistence shape of a scan report. Stays inside the data layer; Core never sees it.</summary>
 public sealed class ScanReportEntity

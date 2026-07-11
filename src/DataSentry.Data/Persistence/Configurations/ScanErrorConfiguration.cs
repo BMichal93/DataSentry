@@ -1,4 +1,4 @@
-using DataSentry.Data.Persistence.Entities;
+using DataSentry.Data.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -6,14 +6,14 @@ namespace DataSentry.Data.Persistence.Configurations;
 
 internal sealed class ScanErrorConfiguration : IEntityTypeConfiguration<ScanErrorEntity>
 {
-    public void Configure(EntityTypeBuilder<ScanErrorEntity> error)
+    public void Configure(EntityTypeBuilder<ScanErrorEntity> builder)
     {
-        error.ToTable("ScanErrors");
-        error.HasKey(e => e.Id);
+        builder.ToTable("ScanErrors");
+        builder.HasKey(error => error.Id);
 
-        error.Property(e => e.Path).IsRequired();
-        error.Property(e => e.Reason).IsRequired();
+        builder.Property(error => error.Path).IsRequired();
+        builder.Property(error => error.Reason).IsRequired();
 
-        error.HasIndex(e => e.ReportId);
+        builder.HasIndex(error => error.ReportId);
     }
 }

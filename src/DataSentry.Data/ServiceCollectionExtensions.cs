@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DataSentry.Data;
 
-public static class DataSentryDataServiceCollectionExtensions
+public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the SQLite persistence layer. <paramref name="databasePath"/> is for tests, which

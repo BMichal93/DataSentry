@@ -1,6 +1,6 @@
 using DataSentry.Core.Models;
 
-namespace DataSentry.Data.Persistence.Entities;
+namespace DataSentry.Data.Persistence.Models;
 
 /// <summary>
 /// The type and the count of a finding. There is deliberately no column for the matched value:

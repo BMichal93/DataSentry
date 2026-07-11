@@ -1,4 +1,4 @@
-using DataSentry.Data.Persistence.Entities;
+using DataSentry.Data.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -6,14 +6,14 @@ namespace DataSentry.Data.Persistence.Configurations;
 
 internal sealed class PiiFindingConfiguration : IEntityTypeConfiguration<PiiFindingEntity>
 {
-    public void Configure(EntityTypeBuilder<PiiFindingEntity> finding)
+    public void Configure(EntityTypeBuilder<PiiFindingEntity> builder)
     {
-        finding.ToTable("PiiFindings");
-        finding.HasKey(f => f.Id);
+        builder.ToTable("PiiFindings");
+        builder.HasKey(finding => finding.Id);
 
-        finding.Property(f => f.Category).HasConversion<string>().HasMaxLength(32);
-        finding.Property(f => f.DetectorName).IsRequired().HasMaxLength(64);
+        builder.Property(finding => finding.Category).HasConversion<string>().HasMaxLength(32);
+        builder.Property(finding => finding.DetectorName).IsRequired().HasMaxLength(64);
 
-        finding.HasIndex(f => f.FileScanResultId);
+        builder.HasIndex(finding => finding.FileScanResultId);
     }
 }

@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DataSentry.Core.Abstractions;
 using DataSentry.Core.Models;
-using DataSentry.Data.Persistence.Entities;
+using DataSentry.Data.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace DataSentry.Data.Persistence;
@@ -62,8 +62,8 @@ public sealed class SqliteScanResultStore : IScanResultStore
 
         ScanReportEntity? report = await context.Reports
             .AsNoTracking()
-            .Include(r => r.Errors)
-            .SingleOrDefaultAsync(r => r.Id == reportId, cancellationToken);
+            .Include(storedReport => storedReport.Errors)
+            .SingleOrDefaultAsync(storedReport => storedReport.Id == reportId, cancellationToken);
 
         return report is null ? null : ScanResultMapper.ToDomain(report);
     }
