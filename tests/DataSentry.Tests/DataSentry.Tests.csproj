@@ -16,6 +16,10 @@
     <PackageReference Include="NUnit" Version="3.14.0" />
     <PackageReference Include="NUnit.Analyzers" Version="3.9.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+
+    <!-- Renders the image fixtures for the OCR tests, so what each picture says is readable in the
+         test that asserts on it — the same reason the document fixtures are built in code. -->
+    <PackageReference Include="System.Drawing.Common" Version="8.0.11" />
   </ItemGroup>
 
   <ItemGroup>

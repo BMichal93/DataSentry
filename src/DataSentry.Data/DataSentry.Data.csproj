@@ -17,6 +17,13 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
 
     <PackageReference Include="PdfPig" Version="0.1.15" />
+    <PackageReference Include="Tesseract" Version="5.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The OCR language model rides along to the build output, where ImageOcrTextExtractor
+         expects to find it — no install step for the user, same as the SQLite database. -->
+    <Content Include="TextExtraction\tessdata\eng.traineddata" Link="tessdata\eng.traineddata" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

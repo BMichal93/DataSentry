@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -213,6 +215,33 @@ public class ScanEngineIntegrationTests
     }
 
     [Test]
+    public async Task ScanAsync_IdentityNumberPrintedOnAScannedId_IsReadOffTheImageAndSurfacedForReview()
+    {
+        WriteImage("id-scan.png", $"PESEL: {ValidPesel}");
+
+        ScanReport report = await BuildEngine().ScanAsync(new ScanScope(_scanRoot));
+
+        FileScanResult result = (await _store.GetResultsAsync(report.Id).ToListAsync()).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Recommendation, Is.EqualTo(Recommendation.Review),
+                "a picture of an identity number is an identity number");
+            Assert.That(result.Findings.Select(finding => finding.Category), Does.Contain(PiiCategory.Identity));
+        });
+
+        // Read the database as the bytes it is, not through the model that wrote it — the OCR text
+        // must reach the detectors and go no further.
+        SqliteConnection.ClearAllPools();
+        string everythingWeWroteDown = await File.ReadAllTextAsync(_databasePath);
+
+        Assert.That(
+            everythingWeWroteDown,
+            Does.Not.Contain(ValidPesel).And.Not.Contain("0031500"),
+            "the database must never become a copy of the data it was built to police");
+    }
+
+    [Test]
     public async Task ScanAsync_FileHeldOpenByAnotherProcess_IsRecordedAsAnErrorAndTheScanFinishes()
     {
         WriteFile("q3-notes.txt", "Nothing in here identifies anybody.");
@@ -300,6 +329,22 @@ public class ScanEngineIntegrationTests
 
         public Task<string> ComputeContentHashAsync(string filePath, CancellationToken cancellationToken = default) =>
             contentReader.ComputeContentHashAsync(filePath, cancellationToken);
+    }
+
+    /// <summary>Black text on a white background at print size — what a scanner produces on a good day.</summary>
+    private void WriteImage(string relativePath, string printedText)
+    {
+        string filePath = Path.Combine(_scanRoot, relativePath);
+
+        using var scan = new Bitmap(1600, 300);
+        using (Graphics canvas = Graphics.FromImage(scan))
+        using (var font = new Font("Arial", 32))
+        {
+            canvas.Clear(Color.White);
+            canvas.DrawString(printedText, font, Brushes.Black, new PointF(40, 100));
+        }
+
+        scan.Save(filePath, ImageFormat.Png);
     }
 
     private void WriteFile(string relativePath, string content)

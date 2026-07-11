@@ -47,6 +47,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITextExtractor, SpreadsheetTextExtractor>();
         services.AddSingleton<ITextExtractor, WordDocumentTextExtractor>();
         services.AddSingleton<ITextExtractor, PdfTextExtractor>();
+        services.AddSingleton<ITextExtractor, ImageOcrTextExtractor>();
 
         // The fallback for every other extension, registered as itself: it is not one of the format
         // extractors above and must not be chosen as though it were.
