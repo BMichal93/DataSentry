@@ -118,6 +118,25 @@ Follow the Google/Apple instinct: **the tool should have one obvious thing to do
 - Immutable domain models where practical (`record`).
 - Fail loudly on programmer errors; handle file-system errors (access denied, path too long, file in use) gracefully — a single bad file must never abort a scan.
 
+### Naming
+
+**Everything is named in English.** No Polish identifiers, comments, commit messages, or UI strings — the repo reads as one language.
+
+| Element | Convention | Example |
+|---|---|---|
+| Class, record, struct, enum | `PascalCase` | `DuplicateFileDetector` |
+| Interface | `PascalCase`, `I` prefix | `IScanResultStore` |
+| Method, property, event | `PascalCase` | `ExtractTextAsync`, `LastModifiedUtc` |
+| Enum member | `PascalCase` | `Recommendation.Review` |
+| Constant | `PascalCase` | `ReportRetentionDays` |
+| Local variable, parameter | `camelCase` | `scannedFilePath`, `matchCount` |
+| Private field | `camelCase`, `_` prefix | `_resultStore` |
+| Async method | `PascalCase`, `Async` suffix | `ScanDirectoryAsync` |
+| Type parameter | `PascalCase`, `T` prefix | `TDetector` |
+| Test method | `Method_Scenario_ExpectedOutcome` | `Classify_FileNotModifiedInTwoYears_RecommendsDelete` |
+
+**Names must be self-describing.** A reader should never need the type declaration or a comment to know what a name holds. Spell words out — `recommendation`, not `rec`; `fileSizeBytes`, not `sz`. Include the unit or the shape when it is not obvious from the type (`maxFileSizeBytes`, `filesPerSecond`, `retentionWindowDays`). Single letters are acceptable only as loop indices and lambda parameters with an obvious scope.
+
 ## Git workflow
 
 **Any large change happens on its own branch.** Branch off `main`, commit there, and merge back into `main` when the work is done and green. Small, self-contained fixes may go straight to `main`; anything touching multiple files or spanning multiple commits does not.
