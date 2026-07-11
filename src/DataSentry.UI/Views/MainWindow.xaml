@@ -55,6 +55,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -97,7 +98,24 @@
                     Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhenTrue}}" />
         </Grid>
 
-        <ProgressBar Grid.Row="1"
+        <!-- Last month's scans. A closed dropdown, because history is a convenience and not the task:
+             the one obvious thing to do on this screen is still to scan a folder. -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    Margin="0,10,0,0"
+                    Visibility="{Binding HasPastScans, Converter={StaticResource VisibleWhenTrue}}">
+            <TextBlock Text="Earlier scans:"
+                       VerticalAlignment="Center"
+                       Style="{StaticResource SecondaryText}" />
+            <ComboBox MinWidth="380"
+                      Margin="8,0,0,0"
+                      Padding="8,5"
+                      ItemsSource="{Binding PastScans}"
+                      SelectedItem="{Binding SelectedPastScan}"
+                      DisplayMemberPath="Description" />
+        </StackPanel>
+
+        <ProgressBar Grid.Row="2"
                      Height="3"
                      Margin="0,16,0,0"
                      IsIndeterminate="True"
@@ -107,7 +125,7 @@
                      Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhenTrue}}" />
 
         <!-- The summary. For most users this is the first thing on screen and the only thing. -->
-        <TextBlock Grid.Row="2"
+        <TextBlock Grid.Row="3"
                    Margin="0,24,0,0"
                    FontSize="21"
                    TextWrapping="Wrap"
@@ -115,7 +133,7 @@
                    Text="{Binding Status}" />
 
         <!-- A footnote, not the headline: nothing here is a decision, only what DataSentry could not see. -->
-        <Expander Grid.Row="3"
+        <Expander Grid.Row="4"
                   Margin="0,14,0,0"
                   Foreground="#FF5F6368"
                   Header="{Binding UnreadableFilesSummary}"
@@ -140,7 +158,7 @@
             </ItemsControl>
         </Expander>
 
-        <Button Grid.Row="4"
+        <Button Grid.Row="5"
                 HorizontalAlignment="Left"
                 Margin="0,18,0,0"
                 Padding="0"
@@ -153,7 +171,7 @@
                 Visibility="{Binding HasResults, Converter={StaticResource VisibleWhenTrue}}" />
 
         <!-- Progressive disclosure: the detail is here when it is asked for, and not before. -->
-        <Grid Grid.Row="5"
+        <Grid Grid.Row="6"
               Margin="0,16,0,0"
               DataContext="{Binding Results}"
               Visibility="{Binding DataContext.IsDetailVisible,

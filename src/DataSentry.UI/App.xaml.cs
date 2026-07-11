@@ -3,6 +3,7 @@ using System.Windows;
 using DataSentry.Core.Retention;
 using DataSentry.Data;
 using DataSentry.Data.Persistence.Context;
+using DataSentry.UI.ViewModels;
 using DataSentry.UI.Views;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -33,6 +34,11 @@ public partial class App : Application
             .BuildServiceProvider();
 
         await PrepareDatabaseAsync(_services);
+
+        // The history list is filled before the window opens: last month's scans are part of what the
+        // first paint shows, and the view model cannot load itself — nothing below the composition
+        // root knows when the application has started.
+        await _services.GetRequiredService<MainViewModel>().LoadAsync();
 
         _services.GetRequiredService<MainWindow>().Show();
     }
