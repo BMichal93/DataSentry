@@ -127,7 +127,38 @@ public class ResultsViewModelTests
 
         FileRowViewModel row = results.Rows.Single();
 
-        Assert.That(row.PiiSummary, Is.EqualTo("3 IBANs"));
+        Assert.Multiple(() =>
+        {
+            Assert.That(row.PiiSummary, Is.EqualTo("3 IBANs"));
+
+            // The row explains why the finding is dangerous — the kind of data and the exposure — but
+            // the matched values themselves have no way onto the screen: the model never carried them.
+            Assert.That(row.WhyItMatters, Does.StartWith("Bank account or card numbers."));
+        });
+    }
+
+    [Test]
+    public async Task Show_AFileWithSeveralKindsOfFindings_ExplainsTheWorstOneFirst()
+    {
+        var store = new InMemoryScanResultStore();
+
+        FileScanResult withMixedPii = ResultAt("C:/hr/medical-leave.xlsx", Recommendation.Review) with
+        {
+            Findings =
+            [
+                new PiiFinding(PiiCategory.Contact, "email address", MatchCount: 12, Confidence: 0.7),
+                new PiiFinding(PiiCategory.SpecialCategory, "health term", MatchCount: 4, Confidence: 0.6)
+            ]
+        };
+
+        Guid reportId = SeedReport(store, [withMixedPii]);
+
+        var results = new ResultsViewModel(store);
+        await results.LoadAsync(reportId, new ScanSummary(1, 0, 0, 0, 1));
+
+        // Special category data is why this file needs a human — so it is the first thing said about
+        // it, in the same priority order the recommendation itself was decided by.
+        Assert.That(results.Rows.Single().WhyItMatters, Does.StartWith("Likely health, beliefs or other special-category data"));
     }
 
     private static IReadOnlyList<FileScanResult> DeleteResults(int count) =>

@@ -239,7 +239,8 @@
                                            TextTrimming="CharacterEllipsis" />
                                 <TextBlock Text="{Binding Reason}" Margin="0,4,0,0" TextWrapping="Wrap" />
 
-                                <!-- Types and counts. The matched value is never shown, here or anywhere. -->
+                                <!-- Types and counts. The matched value is never shown, here or anywhere:
+                                     the report must not become a copy of the data it polices. -->
                                 <Border Margin="0,5,0,0"
                                         Padding="7,2"
                                         CornerRadius="3"
@@ -248,14 +249,19 @@
                                         Visibility="{Binding HasPii, Converter={StaticResource VisibleWhenTrue}}">
                                     <TextBlock Text="{Binding PiiSummary}" FontSize="12" Foreground="#FF1A4FA8" />
                                 </Border>
+
+                                <!-- Why the finding matters — what kind of data and what the exposure is. -->
+                                <TextBlock Text="{Binding WhyItMatters}"
+                                           Margin="0,5,0,0"
+                                           TextWrapping="Wrap"
+                                           Style="{StaticResource SecondaryText}"
+                                           Visibility="{Binding HasPii, Converter={StaticResource VisibleWhenTrue}}" />
                             </StackPanel>
 
-                            <StackPanel Grid.Column="2" HorizontalAlignment="Right">
-                                <TextBlock Text="{Binding SizeText}" HorizontalAlignment="Right" />
-                                <TextBlock Text="{Binding LastModifiedText}"
-                                           Style="{StaticResource SecondaryText}"
-                                           HorizontalAlignment="Right" />
-                            </StackPanel>
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding LastModifiedText}"
+                                       HorizontalAlignment="Right"
+                                       Style="{StaticResource SecondaryText}" />
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
