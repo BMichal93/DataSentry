@@ -44,12 +44,22 @@ Keep the layers physically separate (separate projects) and let dependencies poi
 
 | Layer | Project | Contains | May reference |
 |---|---|---|---|
-| UI | `DataSentry.UI` | Presentation, user interaction, result display | Core |
+| UI | `DataSentry.UI` | WPF views, view models, the composition root | Core — and Data *at the composition root only* |
 | Business logic | `DataSentry.Core` | Domain models, scan engine, classification rules, recommendation logic | *nothing* |
 | Data | `DataSentry.Data` | File system access, metadata reading, persistence of scan results | Core |
 | Tests | `DataSentry.Tests` | NUnit test suite | all |
 
-`DataSentry.Core` is the heart and knows nothing about the file system or the UI. It talks to abstractions (`IFileSource`, `IScanResultStore`) that `DataSentry.Data` implements. This is what makes the rules unit-testable without touching a disk.
+`DataSentry.Core` is the heart and knows nothing about the file system or the UI. It talks to abstractions (`IFileSource`, `IScanResultStore`) that `DataSentry.Data` implements. This is what makes the rules unit-testable without touching a disk. Core references nothing at all — not even a DI container, which is why the rules and detectors are registered from the UI's composition root rather than from an `AddDataSentryCore()` sitting next to them.
+
+**The composition root is the exception that proves the rule.** Somebody has to know that `IScanResultStore` means SQLite, and that somebody is `App.xaml.cs` — so the UI project references Data. *Nothing else in the UI may.* A view model that touches a `DbContext`, an EF type, or a `DataSentry.Data` namespace has put the database in the presentation layer, and the layering has become a diagram instead of a fact.
+
+### MVVM
+
+The UI is MVVM, and the split is the layering again at a smaller scale:
+
+- `Views/` — XAML and its code-behind. The code-behind assigns the `DataContext` it was handed and does nothing else. No logic, so nothing to test.
+- `ViewModels/` — what the window shows and what its buttons do. A view model is constructor-injected with `Core` types (`ScanEngine`) and knows nothing beneath them: not the file system, not the database, not Windows. This is what lets it be tested without standing up a window.
+- Composition root — `App.xaml.cs` and `ServiceCollectionExtensions.cs` at the project root.
 
 ### Folders
 
@@ -58,6 +68,8 @@ Keep the layers physically separate (separate projects) and let dependencies poi
 Group by concern, not by technical suffix. `Persistence/Context` (the `DbContext`, its design-time factory, where the database file lives, how it is migrated on startup) is a concern. `Helpers`, `Managers`, `Utils` are not — they are a shrug in folder form, and anything landing in one is a sign the class has no home because it has no clear job.
 
 A folder needs at least two classes to be worth creating. The one exception is a project's composition root (`ServiceCollectionExtensions`), which is the entry point to the whole project and belongs at its root.
+
+**Two folders in different projects must not share a name unless they hold the same kind of thing.** The domain records live in `Core/Models`; the EF rows live in `Data/Persistence/Entities` and are named `…Entity`. Calling both of them "Models" invites the reader to assume they are the same objects, which is the one thing they must never be — the whole point of the mapper is that Core's `FileScanResult` is not a database row.
 
 ## Testing
 

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using DataSentry.Core.Models;
 
-namespace DataSentry.Data.Persistence.Models;
+namespace DataSentry.Data.Persistence.Entities;
 
 public sealed class FileScanResultEntity
 {

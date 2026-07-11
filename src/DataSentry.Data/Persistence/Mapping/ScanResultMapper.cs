@@ -1,6 +1,6 @@
 using System.Linq;
 using DataSentry.Core.Models;
-using DataSentry.Data.Persistence.Models;
+using DataSentry.Data.Persistence.Entities;
 
 namespace DataSentry.Data.Persistence.Mapping;
 
