@@ -53,8 +53,8 @@ public partial class App : Application
             return;
         }
 
-        // The history list is filled before the window opens: last month's scans are part of what the
-        // first paint shows, and the view model cannot load itself — nothing below the composition
+        // Whatever schedule already exists is read before the window opens: the clock icon shows it
+        // from the first paint, and the view model cannot load itself — nothing below the composition
         // root knows when the application has started.
         await _services.GetRequiredService<MainViewModel>().LoadAsync();
 

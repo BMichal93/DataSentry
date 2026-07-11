@@ -141,6 +141,55 @@ internal sealed class InMemoryScanResultStore : IScanResultStore
         return Task.CompletedTask;
     }
 
+    public Task<int> CountPendingDeletionAsync(Guid reportId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(PendingDeletion(reportId).Count);
+
+    public Task<IReadOnlyList<string>> GetPathsPendingDeletionAsync(
+        Guid reportId,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<string> paths = PendingDeletion(reportId)
+            .Skip(skip)
+            .Take(take)
+            .Select(result => result.FilePath)
+            .ToList();
+
+        return Task.FromResult(paths);
+    }
+
+    /// <summary>
+    /// The same refusal the SQLite store makes, kept by hand: a file that was not condemned cannot be
+    /// marked as deleted, however it arrived in this list.
+    /// </summary>
+    public Task MarkRecycledAsync(
+        Guid reportId,
+        IReadOnlyList<string> filePaths,
+        DateTimeOffset recycledUtc,
+        CancellationToken cancellationToken = default)
+    {
+        List<FileScanResult> results = _resultsByReport[reportId];
+
+        foreach (string filePath in filePaths)
+        {
+            int index = results.FindIndex(result => result.FilePath == filePath && result.CanBeRecycled);
+
+            if (index < 0)
+            {
+                continue;
+            }
+
+            results[index] = results[index] with { RecycledUtc = recycledUtc };
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>The files this report condemned and nobody has deleted yet.</summary>
+    private List<FileScanResult> PendingDeletion(Guid reportId) =>
+        ResultsOf(reportId).Where(result => result.CanBeRecycled).ToList();
+
     public Task DeleteReportAsync(Guid reportId, CancellationToken cancellationToken = default)
     {
         _reports.Remove(reportId);

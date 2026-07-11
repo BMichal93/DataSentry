@@ -32,6 +32,7 @@ internal static class ScanResultMapper
         Recommendation = result.Recommendation,
         RiskLevel = result.RiskLevel,
         Reason = result.Reason,
+        RecycledUtc = result.RecycledUtc,
         Findings = result.Findings.Select(ToEntity).ToList()
     };
 
@@ -74,7 +75,8 @@ internal static class ScanResultMapper
         entity.Recommendation,
         entity.RiskLevel,
         entity.Reason,
-        entity.Findings.Select(ToDomain).ToList());
+        entity.Findings.Select(ToDomain).ToList(),
+        entity.RecycledUtc);
 
     private static PiiFindingEntity ToEntity(PiiFinding finding) => new()
     {

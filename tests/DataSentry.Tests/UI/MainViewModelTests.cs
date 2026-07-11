@@ -11,9 +11,8 @@ using DataSentry.UI.ViewModels;
 namespace DataSentry.Tests.UI;
 
 /// <summary>
-/// The view model, exercised without a window and without a disk. Everything it needs arrives through
-/// its constructor, so there is nothing to stand up and nothing to mock away — which is the whole
-/// argument for injecting it rather than letting it reach for what it wants.
+/// The shell: two tabs and the choice between them. Everything either tab does is tested on its own
+/// view model; what is tested here is only what the shell itself decides.
 /// </summary>
 [TestFixture]
 public class MainViewModelTests
@@ -21,285 +20,57 @@ public class MainViewModelTests
     private static readonly DateTimeOffset Now = new(2026, 7, 11, 9, 0, 0, TimeSpan.Zero);
 
     [Test]
-    public async Task ScanAsync_FolderOfMixedFiles_SaysWhatIsThereInPlainLanguage()
+    public void TheWindowOpens_OnTheSearchTab()
     {
-        MainViewModel viewModel = BuildViewModel(
-        [
-            FileAt("C:/work/report.docx", sizeBytes: 2_000_000_000),
-            FileAt("C:/work/export.tmp", sizeBytes: 3_328_599_654),
-            FileAt("C:/work/suppliers.csv", sizeBytes: 4_096)
-        ],
-        textByPath: new Dictionary<string, string?>
-        {
-            ["C:/work/suppliers.csv"] = "Kowalski,PL61 1090 1014 0000 0712 1981 2874"
-        });
-
-        viewModel.FolderPath = "C:/work";
-
-        await viewModel.ScanAsync();
-
-        Assert.That(viewModel.Status, Is.EqualTo("3 files scanned, 1 suggested for deletion, 1 needs review."));
-    }
-
-    [Test]
-    public async Task ScanAsync_NothingWorthDeleting_StillSaysSo()
-    {
-        MainViewModel viewModel = BuildViewModel([FileAt("C:/work/report.docx", sizeBytes: 4_096)]);
-
-        viewModel.FolderPath = "C:/work";
-
-        await viewModel.ScanAsync();
-
-        Assert.That(viewModel.Status, Is.EqualTo("1 file scanned, nothing suggested for deletion, nothing needs review."));
-    }
-
-    [Test]
-    public async Task ScanAsync_FolderThatDoesNotExist_SaysItCouldNotBeReadRatherThanThatItIsEmpty()
-    {
-        // The walker reports the missing root as a ScanError and yields no files. That is a different
-        // thing from an empty folder, and the user is owed the difference: one is a typo, the other is
-        // a clean drive.
-        MainViewModel viewModel = BuildViewModel(
-            files: [],
-            walkErrors: [new ScanError("C:/does-not-exist", "Folder not found")]);
-
-        viewModel.FolderPath = "C:/does-not-exist";
-
-        await viewModel.ScanAsync();
+        MainViewModel shell = BuildShell(new InMemoryScanResultStore());
 
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.Status, Is.EqualTo("That folder could not be read. Nothing was scanned."));
-            Assert.That(viewModel.HasUnreadableFiles, Is.True);
+            Assert.That(shell.IsSearchTabOpen, Is.True);
+            Assert.That(shell.IsReportsTabOpen, Is.False);
         });
     }
 
     [Test]
-    public async Task ScanAsync_FilesTheScanCouldNotRead_AreSurfacedButNotAsTheHeadline()
+    public async Task ShowReportsAsync_OpensTheTabWithAListNoOlderThanTheClick()
     {
-        MainViewModel viewModel = BuildViewModel(
-            files: [FileAt("C:/work/report.docx", sizeBytes: 4_096)],
-            walkErrors:
-            [
-                new ScanError("C:/work/locked.xlsx", "Access denied"),
-                new ScanError("C:/work/secret", "Access denied")
-            ]);
-
-        viewModel.FolderPath = "C:/work";
-
-        await viewModel.ScanAsync();
-
-        Assert.Multiple(() =>
-        {
-            // The headline is still about the files that were judged, not the ones that were not.
-            Assert.That(viewModel.Status, Does.StartWith("1 file scanned,"));
-            Assert.That(viewModel.HasUnreadableFiles, Is.True);
-            Assert.That(viewModel.UnreadableFilesSummary, Is.EqualTo("2 files could not be read, and were not judged."));
-            Assert.That(viewModel.UnreadableFiles, Has.Count.EqualTo(2));
-        });
-    }
-
-    [Test]
-    public async Task ScanAsync_ManyUnreadableFiles_ListsOnlyTheFirstHundredButCountsThemAll()
-    {
-        List<ScanError> walkErrors = Enumerable
-            .Range(0, 250)
-            .Select(index => new ScanError($"C:/work/denied-{index}", "Access denied"))
-            .ToList();
-
-        MainViewModel viewModel = BuildViewModel(
-            files: [FileAt("C:/work/report.docx", sizeBytes: 4_096)],
-            walkErrors: walkErrors);
-
-        viewModel.FolderPath = "C:/work";
-
-        await viewModel.ScanAsync();
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(viewModel.UnreadableFiles, Has.Count.EqualTo(100));
-            Assert.That(
-                viewModel.UnreadableFilesSummary,
-                Is.EqualTo("250 files could not be read, and were not judged. The first 100 are listed."));
-        });
-    }
-
-    [Test]
-    public async Task ScanAsync_Cancelled_StopsAndSaysSoWithoutAResult()
-    {
-        // A file source that cancels the scan the moment the first file is enumerated. The scan honours
-        // the token, throws OperationCanceledException, and the view model turns that into a plain
-        // sentence rather than a crash.
-        MainViewModel? viewModel = null;
-
-        viewModel = BuildViewModel(
-            files: [FileAt("C:/work/a.txt", sizeBytes: 4_096)],
-            onFileEnumerated: _ => viewModel!.CancelScan());
-
-        viewModel.FolderPath = "C:/work";
-
-        await viewModel.ScanAsync();
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(viewModel.Status, Is.EqualTo("Scan cancelled. Nothing was changed."));
-            Assert.That(viewModel.HasResults, Is.False);
-            Assert.That(viewModel.IsScanning, Is.False);
-        });
-    }
-
-    [Test]
-    public void ScanCommand_BeforeAFolderIsNamed_IsNotOfferedToTheUser()
-    {
-        MainViewModel viewModel = BuildViewModel([]);
-
-        Assert.That(viewModel.ScanCommand.CanExecute(null), Is.False);
-
-        viewModel.FolderPath = "C:/work";
-
-        Assert.That(viewModel.ScanCommand.CanExecute(null), Is.True);
-    }
-
-    [Test]
-    public void FolderPath_WhenItChanges_TellsTheWindowAboutIt()
-    {
-        MainViewModel viewModel = BuildViewModel([]);
-
-        var changedProperties = new List<string?>();
-        viewModel.PropertyChanged += (_, e) => changedProperties.Add(e.PropertyName);
-
-        viewModel.FolderPath = "C:/work";
-
-        Assert.That(changedProperties, Is.EqualTo(new[] { nameof(MainViewModel.FolderPath) }));
-    }
-
-    [Test]
-    public async Task PickFolderAsync_WhenTheUserChoosesAFolder_PutsItInTheBox()
-    {
-        MainViewModel viewModel = BuildViewModel([], pickedFolder: "C:/chosen");
-
-        await viewModel.PickFolderAsync();
-
-        Assert.That(viewModel.FolderPath, Is.EqualTo("C:/chosen"));
-    }
-
-    [Test]
-    public async Task PickFolderAsync_WhenTheUserCancelsTheDialog_LeavesTheBoxAlone()
-    {
-        MainViewModel viewModel = BuildViewModel([], pickedFolder: null);
-        viewModel.FolderPath = "C:/already-typed";
-
-        await viewModel.PickFolderAsync();
-
-        Assert.That(viewModel.FolderPath, Is.EqualTo("C:/already-typed"));
-    }
-
-    [Test]
-    public async Task ShowDetailCommand_BeforeAScanHasRun_IsNotOffered()
-    {
-        MainViewModel viewModel = BuildViewModel([FileAt("C:/work/a.txt", sizeBytes: 4_096)]);
-
-        Assert.That(viewModel.ShowDetailCommand.CanExecute(null), Is.False);
-
-        viewModel.FolderPath = "C:/work";
-        await viewModel.ScanAsync();
-
-        Assert.That(viewModel.ShowDetailCommand.CanExecute(null), Is.True);
-    }
-
-    [Test]
-    public async Task ToggleDetailAsync_ShowsTheFilesAndThenHidesThemAgain()
-    {
-        MainViewModel viewModel = BuildViewModel([FileAt("C:/work/a.txt", sizeBytes: 4_096)]);
-        viewModel.FolderPath = "C:/work";
-        await viewModel.ScanAsync();
-
-        await viewModel.ToggleDetailAsync();
-        Assert.That(viewModel.IsDetailVisible, Is.True);
-
-        await viewModel.ToggleDetailAsync();
-        Assert.That(viewModel.IsDetailVisible, Is.False);
-    }
-
-    [Test]
-    public async Task ScanAsync_WhenItFinishes_TheScanJoinsTheHistoryList()
-    {
-        MainViewModel viewModel = BuildViewModel([FileAt("C:/work/report.docx", sizeBytes: 4_096)]);
-
-        Assert.That(viewModel.HasPastScans, Is.False);
-
-        viewModel.FolderPath = "C:/work";
-        await viewModel.ScanAsync();
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(viewModel.PastScans, Has.Count.EqualTo(1));
-            Assert.That(viewModel.PastScans[0].Description, Does.Contain("C:/work"));
-            Assert.That(viewModel.PastScans[0].Description, Does.Contain("1 file"));
-
-            // The scan just shown is not also "selected history" — the list is there for going back.
-            Assert.That(viewModel.SelectedPastScan, Is.Null);
-        });
-    }
-
-    [Test]
-    public async Task SelectedPastScan_ChoosingAnEarlierScan_ShowsItsReportAgain()
-    {
-        MainViewModel viewModel = BuildViewModel(
-        [
-            FileAt("C:/work/export.tmp", sizeBytes: 4_096),
-            FileAt("C:/work/report.docx", sizeBytes: 4_096)
-        ]);
-
-        viewModel.FolderPath = "C:/work";
-        await viewModel.ScanAsync();
-
-        // The user walks away: new folder typed, nothing scanned yet.
-        viewModel.FolderPath = "C:/somewhere-else";
-
-        viewModel.SelectedPastScan = viewModel.PastScans[0];
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(viewModel.Status, Is.EqualTo("2 files scanned, 1 suggested for deletion, nothing needs review."));
-            Assert.That(viewModel.FolderPath, Is.EqualTo("C:/work"), "coming back to a report brings its folder with it");
-            Assert.That(viewModel.HasResults, Is.True);
-        });
-    }
-
-    [Test]
-    public async Task LoadAsync_OnStartup_FillsTheHistoryFromTheStore()
-    {
+        // The report lands in the store after the shell is built — a scan that finished on the Search
+        // tab, or headless from the Task Scheduler. Opening the tab must still find it.
         var store = new InMemoryScanResultStore();
+        MainViewModel shell = BuildShell(store);
 
-        await store.SaveReportAsync(
-            new ScanReport(Guid.NewGuid(), "C:/archive", Now.AddDays(-3), Now.AddDays(-3), new ScanSummary(5, 0, 2, 0, 1), []),
-            Array.Empty<FileScanResult>().ToAsyncEnumerable());
+        await SeedReportAsync(store, "C:/work");
 
-        MainViewModel viewModel = BuildViewModel([], store: store);
-
-        await viewModel.LoadAsync();
+        await shell.ShowReportsAsync();
 
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.HasPastScans, Is.True);
-            Assert.That(viewModel.PastScans[0].Description, Does.Contain("C:/archive"));
+            Assert.That(shell.IsReportsTabOpen, Is.True);
+            Assert.That(shell.Reports.Reports.Single().FolderPath, Is.EqualTo("C:/work"));
         });
     }
 
-    private static MainViewModel BuildViewModel(
-        IReadOnlyList<FileMetadata> files,
-        IReadOnlyDictionary<string, string?>? textByPath = null,
-        IReadOnlyList<ScanError>? walkErrors = null,
-        Action<FileMetadata>? onFileEnumerated = null,
-        string? pickedFolder = null,
-        InMemoryScanResultStore? store = null)
+    [Test]
+    public async Task ShowSearchCommand_ComesBackFromTheReportsTab()
     {
-        store ??= new InMemoryScanResultStore();
-        var contentReader = new FakeFileContentReader(textByPath);
+        MainViewModel shell = BuildShell(new InMemoryScanResultStore());
+
+        await shell.ShowReportsAsync();
+        shell.ShowSearchCommand.Execute(null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(shell.IsSearchTabOpen, Is.True);
+            Assert.That(shell.IsReportsTabOpen, Is.False);
+        });
+    }
+
+    private static MainViewModel BuildShell(InMemoryScanResultStore store)
+    {
+        var contentReader = new FakeFileContentReader(null);
 
         var scanEngine = new ScanEngine(
-            new FakeFileSource(files, walkErrors, onFileEnumerated),
+            new FakeFileSource([], null, null),
             contentReader,
             store,
             [new JunkFileRule(), new StaleFileRule()],
@@ -307,18 +78,47 @@ public class MainViewModelTests
             new DuplicateFileSweep(store, contentReader),
             new FixedTimeProvider(Now));
 
-        return new MainViewModel(
+        var search = new SearchViewModel(
             scanEngine,
-            store,
-            new ResultsViewModel(store),
+            BuildResults(store),
             new ScheduleViewModel(new FakeScanScheduler()),
-            new FakeFolderPicker(pickedFolder));
+            new FakeFolderPicker(null));
+
+        return new MainViewModel(search, new ReportsViewModel(store, BuildResults(store)));
     }
 
-    private static FileMetadata FileAt(string filePath, long sizeBytes)
-    {
-        DateTimeOffset yesterday = Now.AddDays(-1);
+    private static ResultsViewModel BuildResults(InMemoryScanResultStore store) =>
+        new(
+            store,
+            new FakeFileRecycler(),
+            new FakeFileOpener(),
+            new FakeConfirmationPrompt(answer: false),
+            new FixedTimeProvider(Now));
 
-        return new FileMetadata(filePath, sizeBytes, yesterday, yesterday, yesterday);
+    private static Task SeedReportAsync(InMemoryScanResultStore store, string rootPath)
+    {
+        var report = new ScanReport(
+            Guid.NewGuid(),
+            rootPath,
+            Now.AddDays(-1),
+            Now.AddDays(-1),
+            new ScanSummary(1, 0, 1, 0, 0),
+            []);
+
+        IReadOnlyList<FileScanResult> results =
+        [
+            new(
+                $"{rootPath}/export.tmp",
+                SizeBytes: 4_096,
+                CreatedUtc: Now,
+                LastModifiedUtc: Now,
+                LastAccessedUtc: Now,
+                Recommendation.Delete,
+                RiskLevel.None,
+                Reason: "Because the test said so",
+                Findings: [])
+        ];
+
+        return store.SaveReportAsync(report, results.ToAsyncEnumerable());
     }
 }

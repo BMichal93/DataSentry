@@ -3,336 +3,107 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:DataSentry.UI.Views"
         xmlns:viewModels="clr-namespace:DataSentry.UI.ViewModels"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=viewModels:MainViewModel}"
         Title="DataSentry" Height="700" Width="960" MinHeight="420" MinWidth="720"
-        Background="#FFFBFBFD"
+        Background="White"
         FontFamily="Segoe UI">
 
     <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
-
-        <!-- The three verdicts, told apart at a glance. Review is blue and not red: a file that needs a
-             human decision is the interesting outcome of a scan, not a failure of one. -->
-        <Style x:Key="RecommendationBadge" TargetType="Border">
-            <Setter Property="CornerRadius" Value="3" />
-            <Setter Property="Padding" Value="8,2" />
-            <Setter Property="Width" Value="72" />
-            <Setter Property="Background" Value="#FFE8EAED" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Recommendation}" Value="Review">
-                    <Setter Property="Background" Value="#FF1A73E8" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Recommendation}" Value="Delete">
-                    <Setter Property="Background" Value="#FFB3261E" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Recommendation}" Value="Retain">
-                    <Setter Property="Background" Value="#FF1E8E3E" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="HeadingButton" TargetType="Button">
-            <Setter Property="Padding" Value="14,7" />
-            <Setter Property="Margin" Value="0,0,8,0" />
+        <!-- The two tabs: plain words with an underline on the open one, the way search results pages
+             do it. The underline is the whole indicator — no boxes, no borders, no chrome. -->
+        <Style x:Key="TabButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Background" Value="#FFEDEFF3" />
-            <Setter Property="Foreground" Value="#FF3C4043" />
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}" />
+            <Setter Property="FontSize" Value="14" />
             <Setter Property="Cursor" Value="Hand" />
-        </Style>
-
-        <Style x:Key="SecondaryText" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#FF5F6368" />
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="Margin" Value="24,0,0,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <StackPanel>
+                                <ContentPresenter Margin="0,10,0,8" />
+                                <Border x:Name="Underline" Height="3" CornerRadius="1.5" Background="Transparent" />
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Tag" Value="Open">
+                                <Setter TargetName="Underline" Property="Background" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="Open">
+                    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="28,24">
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- The one obvious thing to do: name a folder, scan it. -->
-        <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <TextBox Grid.Column="0"
-                     Padding="8,7"
-                     VerticalContentAlignment="Center"
-                     BorderBrush="#FFDADCE0"
-                     Text="{Binding FolderPath, UpdateSourceTrigger=PropertyChanged}" />
-
-            <Button Grid.Column="1"
-                    Content="Browse…"
-                    Padding="14,7"
-                    Margin="8,0,0,0"
-                    Command="{Binding BrowseCommand}" />
-
-            <Button Grid.Column="2"
-                    Content="Scan"
-                    Padding="22,7"
-                    Margin="8,0,0,0"
-                    Background="#FF1A73E8"
-                    Foreground="White"
-                    BorderThickness="0"
-                    FontWeight="SemiBold"
-                    Command="{Binding ScanCommand}" />
-
-            <Button Grid.Column="3"
-                    Content="Cancel"
-                    Padding="14,7"
-                    Margin="8,0,0,0"
-                    Command="{Binding CancelCommand}"
-                    Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhenTrue}}" />
-        </Grid>
-
-        <!-- Last month's scans. A closed dropdown, because history is a convenience and not the task:
-             the one obvious thing to do on this screen is still to scan a folder. -->
-        <StackPanel Grid.Row="1"
-                    Orientation="Horizontal"
-                    Margin="0,10,0,0"
-                    Visibility="{Binding HasPastScans, Converter={StaticResource VisibleWhenTrue}}">
-            <TextBlock Text="Earlier scans:"
-                       VerticalAlignment="Center"
-                       Style="{StaticResource SecondaryText}" />
-            <ComboBox MinWidth="380"
-                      Margin="8,0,0,0"
-                      Padding="8,5"
-                      ItemsSource="{Binding PastScans}"
-                      SelectedItem="{Binding SelectedPastScan}"
-                      DisplayMemberPath="Description" />
-        </StackPanel>
-
-        <!-- The daily scheduled scan: one folder, one hour, set or removed in place. Windows fires it,
-             so it runs whether or not the app is open. -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding Schedule.HasNoSchedule, Converter={StaticResource VisibleWhenTrue}}">
-                <TextBlock Text="Scan this folder every day at"
+        <!-- The header: the name, and the two places the app has. Nothing else lives up here. -->
+        <Border Grid.Row="0"
+                Padding="28,6,28,0"
+                BorderBrush="{StaticResource HoverBrush}"
+                BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="DataSentry"
+                           FontSize="17"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextBrush}"
                            VerticalAlignment="Center"
-                           Style="{StaticResource SecondaryText}" />
-                <TextBox Width="56"
-                         Margin="8,0,0,0"
-                         Padding="6,4"
-                         VerticalContentAlignment="Center"
-                         BorderBrush="#FFDADCE0"
-                         Text="{Binding Schedule.StartTimeText, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Content="Schedule"
-                        Padding="12,4"
-                        Margin="8,0,0,0"
-                        Command="{Binding ScheduleScanCommand}" />
-            </StackPanel>
+                           Margin="0,0,12,4" />
 
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding Schedule.HasSchedule, Converter={StaticResource VisibleWhenTrue}}">
-                <TextBlock Text="{Binding Schedule.Description}"
-                           VerticalAlignment="Center"
-                           Style="{StaticResource SecondaryText}" />
-                <Button Content="Remove"
-                        Padding="12,4"
-                        Margin="8,0,0,0"
-                        Command="{Binding Schedule.RemoveCommand}" />
-            </StackPanel>
-
-            <TextBlock Text="{Binding Schedule.Message}"
-                       Margin="12,0,0,0"
-                       VerticalAlignment="Center"
-                       Foreground="#FFB3261E" />
-        </StackPanel>
-
-        <ProgressBar Grid.Row="3"
-                     Height="3"
-                     Margin="0,16,0,0"
-                     IsIndeterminate="True"
-                     Foreground="#FF1A73E8"
-                     BorderThickness="0"
-                     Background="Transparent"
-                     Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhenTrue}}" />
-
-        <!-- The summary. For most users this is the first thing on screen and the only thing. -->
-        <TextBlock Grid.Row="4"
-                   Margin="0,24,0,0"
-                   FontSize="21"
-                   TextWrapping="Wrap"
-                   Foreground="#FF202124"
-                   Text="{Binding Status}" />
-
-        <!-- A footnote, not the headline: nothing here is a decision, only what DataSentry could not see. -->
-        <Expander Grid.Row="5"
-                  Margin="0,14,0,0"
-                  Foreground="#FF5F6368"
-                  Header="{Binding UnreadableFilesSummary}"
-                  Visibility="{Binding HasUnreadableFiles, Converter={StaticResource VisibleWhenTrue}}">
-            <ItemsControl ItemsSource="{Binding UnreadableFiles}" Margin="24,8,0,0" MaxHeight="120">
-                <ItemsControl.Template>
-                    <ControlTemplate TargetType="ItemsControl">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <ItemsPresenter />
-                        </ScrollViewer>
-                    </ControlTemplate>
-                </ItemsControl.Template>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Margin="0,0,0,3" Style="{StaticResource SecondaryText}">
-                            <Run Text="{Binding Reason, Mode=OneWay}" FontWeight="SemiBold" />
-                            <Run Text="—" />
-                            <Run Text="{Binding Path, Mode=OneWay}" />
-                        </TextBlock>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </Expander>
-
-        <Button Grid.Row="6"
-                HorizontalAlignment="Left"
-                Margin="0,18,0,0"
-                Padding="0"
-                Background="Transparent"
-                BorderThickness="0"
-                Foreground="#FF1A73E8"
-                Cursor="Hand"
-                Content="{Binding DetailToggleText}"
-                Command="{Binding ShowDetailCommand}"
-                Visibility="{Binding HasResults, Converter={StaticResource VisibleWhenTrue}}" />
-
-        <!-- Progressive disclosure: the detail is here when it is asked for, and not before. -->
-        <Grid Grid.Row="7"
-              Margin="0,16,0,0"
-              DataContext="{Binding Results}"
-              Visibility="{Binding DataContext.IsDetailVisible,
-                                   RelativeSource={RelativeSource AncestorType=Window},
-                                   Converter={StaticResource VisibleWhenTrue}}">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
-            <StackPanel Grid.Row="0" Orientation="Horizontal">
-                <Button Content="{Binding NeedsReviewHeading}" Command="{Binding ShowNeedsReviewCommand}">
+                <Button Content="Search" Command="{Binding ShowSearchCommand}">
                     <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource HeadingButton}">
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsShowingNeedsReview}" Value="True">
-                                    <Setter Property="Background" Value="#FF1A73E8" />
-                                    <Setter Property="Foreground" Value="White" />
+                                <DataTrigger Binding="{Binding IsSearchTabOpen}" Value="True">
+                                    <Setter Property="Tag" Value="Open" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Button.Style>
                 </Button>
 
-                <Button Content="{Binding ToDeleteHeading}" Command="{Binding ShowToDeleteCommand}">
+                <Button Content="Reports" Command="{Binding ShowReportsCommand}">
                     <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource HeadingButton}">
+                        <Style TargetType="Button" BasedOn="{StaticResource TabButton}">
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsShowingToDelete}" Value="True">
-                                    <Setter Property="Background" Value="#FFB3261E" />
-                                    <Setter Property="Foreground" Value="White" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-
-                <Button Content="{Binding ToKeepHeading}" Command="{Binding ShowToKeepCommand}">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource HeadingButton}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsShowingToKeep}" Value="True">
-                                    <Setter Property="Background" Value="#FF1E8E3E" />
-                                    <Setter Property="Foreground" Value="White" />
+                                <DataTrigger Binding="{Binding IsReportsTabOpen}" Value="True">
+                                    <Setter Property="Tag" Value="Open" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Button.Style>
                 </Button>
             </StackPanel>
+        </Border>
 
-            <!-- One page of files. The list never holds more than that, however large the tree was. -->
-            <ListBox Grid.Row="1"
-                     Margin="0,12,0,0"
-                     BorderBrush="#FFE0E3E7"
-                     Background="White"
-                     ItemsSource="{Binding Rows}"
-                     HorizontalContentAlignment="Stretch"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     VirtualizingStackPanel.IsVirtualizing="True">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid Margin="4,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+        <!-- The open tab. Both views stay alive so switching away from a scan does not lose it. -->
+        <Grid Grid.Row="1" Margin="28,24">
+            <views:SearchView DataContext="{Binding Search}"
+                              Visibility="{Binding DataContext.IsSearchTabOpen,
+                                                   RelativeSource={RelativeSource AncestorType=Window},
+                                                   Converter={StaticResource VisibleWhenTrue}}" />
 
-                            <Border Grid.Column="0" Style="{StaticResource RecommendationBadge}" VerticalAlignment="Top">
-                                <TextBlock Text="{Binding RecommendationText}"
-                                           Foreground="White"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           HorizontalAlignment="Center" />
-                            </Border>
-
-                            <StackPanel Grid.Column="1" Margin="14,0,12,0">
-                                <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding FolderPath}"
-                                           Style="{StaticResource SecondaryText}"
-                                           TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding Reason}" Margin="0,4,0,0" TextWrapping="Wrap" />
-
-                                <!-- Types and counts. The matched value is never shown, here or anywhere:
-                                     the report must not become a copy of the data it polices. -->
-                                <Border Margin="0,5,0,0"
-                                        Padding="7,2"
-                                        CornerRadius="3"
-                                        Background="#FFE8F0FE"
-                                        HorizontalAlignment="Left"
-                                        Visibility="{Binding HasPii, Converter={StaticResource VisibleWhenTrue}}">
-                                    <TextBlock Text="{Binding PiiSummary}" FontSize="12" Foreground="#FF1A4FA8" />
-                                </Border>
-
-                                <!-- Why the finding matters — what kind of data and what the exposure is. -->
-                                <TextBlock Text="{Binding WhyItMatters}"
-                                           Margin="0,5,0,0"
-                                           TextWrapping="Wrap"
-                                           Style="{StaticResource SecondaryText}"
-                                           Visibility="{Binding HasPii, Converter={StaticResource VisibleWhenTrue}}" />
-                            </StackPanel>
-
-                            <TextBlock Grid.Column="2"
-                                       Text="{Binding LastModifiedText}"
-                                       HorizontalAlignment="Right"
-                                       Style="{StaticResource SecondaryText}" />
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-
-            <Grid Grid.Row="2" Margin="0,12,0,0">
-                <TextBlock Text="{Binding PageDescription}"
-                           VerticalAlignment="Center"
-                           Style="{StaticResource SecondaryText}" />
-
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="Previous" Padding="14,6" Command="{Binding PreviousPageCommand}" />
-                    <Button Content="Next" Padding="14,6" Margin="8,0,0,0" Command="{Binding NextPageCommand}" />
-                </StackPanel>
-            </Grid>
+            <views:ReportsView DataContext="{Binding Reports}"
+                               Visibility="{Binding DataContext.IsReportsTabOpen,
+                                                    RelativeSource={RelativeSource AncestorType=Window},
+                                                    Converter={StaticResource VisibleWhenTrue}}" />
         </Grid>
     </Grid>
 </Window>

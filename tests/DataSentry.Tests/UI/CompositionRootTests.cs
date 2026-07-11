@@ -8,6 +8,7 @@ using DataSentry.Core.Scanning;
 using DataSentry.Data;
 using DataSentry.UI;
 using DataSentry.UI.Dialogs;
+using DataSentry.UI.FileActions;
 using DataSentry.UI.Scheduling;
 using DataSentry.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -94,6 +95,25 @@ public class CompositionRootTests
         // composition root and nowhere else. A view model that opened a dialog itself could not be
         // tested without a window, which is the whole reason this interface exists.
         Assert.That(_services.GetRequiredService<IFolderPicker>(), Is.InstanceOf<WindowsFolderPicker>());
+    }
+
+    [Test]
+    public void CompositionRoot_TheThingThatDeletesFiles_IsTheRecycleBinAndNotAPermanentDelete()
+    {
+        // The single most consequential registration in the application. DataSentry recommends and the
+        // user decides — and a user who decides wrong must be able to change their mind, which is only
+        // true for as long as this line says "recycle bin" rather than File.Delete.
+        Assert.That(_services.GetRequiredService<IFileRecycler>(), Is.InstanceOf<RecycleBinFileRecycler>());
+    }
+
+    [Test]
+    public void CompositionRoot_TheConfirmationAndTheFileOpener_AreTheRealWindowsOnes()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(_services.GetRequiredService<IConfirmationPrompt>(), Is.InstanceOf<WindowsConfirmationPrompt>());
+            Assert.That(_services.GetRequiredService<IFileOpener>(), Is.InstanceOf<ShellFileOpener>());
+        });
     }
 
     [Test]

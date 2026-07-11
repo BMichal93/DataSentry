@@ -1,0 +1,129 @@
+<UserControl x:Class="DataSentry.UI.Views.ReportsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:views="clr-namespace:DataSentry.UI.Views"
+             xmlns:viewModels="clr-namespace:DataSentry.UI.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=viewModels:ReportsViewModel}">
+
+    <!-- The Reports tab: last month's scans as a list, one report open at a time. Master-detail
+         without the clutter of both at once — the list, or the report, never the two side by side. -->
+
+    <Grid MaxWidth="860">
+
+        <!-- The list of reports. Clicking a row opens it. -->
+        <Grid Visibility="{Binding IsListOpen, Converter={StaticResource VisibleWhenTrue}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Retention, said out loud: the list is bounded by the purge, and the user deserves to
+                 know that is a feature, not a fault. -->
+            <TextBlock Grid.Row="0"
+                       Text="Reports are kept for 30 days after the scan, then removed."
+                       Style="{StaticResource SecondaryText}" />
+
+            <TextBlock Grid.Row="1"
+                       Margin="0,26,0,0"
+                       FontSize="15"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Text="No reports yet. Scan a folder, and its report will be waiting here."
+                       Visibility="{Binding HasNoReports, Converter={StaticResource VisibleWhenTrue}}" />
+
+            <ListBox Grid.Row="1"
+                     Margin="0,14,0,0"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     ItemsSource="{Binding Reports}"
+                     SelectedItem="{Binding SelectedReport}"
+                     SelectionMode="Single"
+                     HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     Visibility="{Binding HasReports, Converter={StaticResource VisibleWhenTrue}}">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="Surface"
+                                            Background="Transparent"
+                                            BorderBrush="{StaticResource HoverBrush}"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="12,12">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Surface" Property="Background" Value="#FFF8F9FA" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding FolderPath}"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding SummaryText}"
+                                           Margin="0,3,0,0"
+                                           TextTrimming="CharacterEllipsis"
+                                           Style="{StaticResource SecondaryText}" />
+                            </StackPanel>
+
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ScannedOnText}"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource SecondaryText}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <!-- One report, open: the way back, the headline, and the files behind it. -->
+        <Grid Visibility="{Binding IsReportOpen, Converter={StaticResource VisibleWhenTrue}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                <Button Content="&#xE72B;"
+                        ToolTip="Back to all reports"
+                        Style="{StaticResource IconButton}"
+                        Command="{Binding CloseReportCommand}" />
+                <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SelectedReport.FolderPath}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SelectedReport.ScannedOnText}" Style="{StaticResource SecondaryText}" />
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock Grid.Row="1"
+                       Margin="4,18,0,0"
+                       FontSize="19"
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource TextBrush}"
+                       Text="{Binding Headline}" />
+
+            <views:ResultsView Grid.Row="2"
+                               Margin="0,14,0,0"
+                               DataContext="{Binding Results}" />
+        </Grid>
+    </Grid>
+</UserControl>
