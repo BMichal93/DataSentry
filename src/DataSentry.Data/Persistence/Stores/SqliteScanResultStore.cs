@@ -58,6 +58,26 @@ public sealed class SqliteScanResultStore : IScanResultStore
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task CompleteReportAsync(ScanReport report, CancellationToken cancellationToken = default)
+    {
+        await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        ScanReportEntity? storedReport = await context.Reports
+            .Include(storedReport => storedReport.Errors)
+            .SingleOrDefaultAsync(storedReport => storedReport.Id == report.Id, cancellationToken);
+
+        if (storedReport is null)
+        {
+            throw new InvalidOperationException(
+                $"Cannot complete report {report.Id}: it was never saved. This is a bug in the caller — " +
+                "a report is saved when the scan starts and completed when it ends.");
+        }
+
+        ScanResultMapper.ApplyCompletion(storedReport, report);
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<ScanReport?> GetReportAsync(Guid reportId, CancellationToken cancellationToken = default)
     {
         await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);

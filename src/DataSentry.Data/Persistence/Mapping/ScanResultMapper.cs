@@ -35,6 +35,23 @@ internal static class ScanResultMapper
         Findings = result.Findings.Select(ToEntity).ToList()
     };
 
+    /// <summary>
+    /// Writes the outcome of a finished scan onto the row that was written when it started. The errors
+    /// are replaced rather than appended: this says how the scan ended, and it says it once.
+    /// </summary>
+    public static void ApplyCompletion(ScanReportEntity entity, ScanReport report)
+    {
+        entity.CompletedUtc = report.CompletedUtc;
+        entity.FilesScanned = report.Summary.FilesScanned;
+        entity.TotalSizeBytes = report.Summary.TotalSizeBytes;
+        entity.FilesRecommendedForDeletion = report.Summary.FilesRecommendedForDeletion;
+        entity.ReclaimableBytes = report.Summary.ReclaimableBytes;
+        entity.FilesNeedingReview = report.Summary.FilesNeedingReview;
+
+        entity.Errors.Clear();
+        entity.Errors.AddRange(report.Errors.Select(error => ToEntity(error, report.Id)));
+    }
+
     public static ScanReport ToDomain(ScanReportEntity entity) => new(
         entity.Id,
         entity.RootPath,

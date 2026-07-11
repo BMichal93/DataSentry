@@ -40,6 +40,9 @@ public class ReportRetentionServiceTests
         public Task SaveReportAsync(ScanReport report, IAsyncEnumerable<FileScanResult> results, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task CompleteReportAsync(ScanReport report, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<ScanReport?> GetReportAsync(Guid reportId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
