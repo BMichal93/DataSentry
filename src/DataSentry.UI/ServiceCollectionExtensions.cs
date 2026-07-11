@@ -1,6 +1,7 @@
 using DataSentry.Core.Classification;
 using DataSentry.Core.Detection;
 using DataSentry.Core.Scanning;
+using DataSentry.UI.Dialogs;
 using DataSentry.UI.ViewModels;
 using DataSentry.UI.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,6 +54,12 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddDataSentryUserInterface(this IServiceCollection services)
     {
+        // The one thing in the application that knows a Windows dialog exists. Everything upstream of
+        // this line asks for a folder and is told one, which is what keeps the view model testable
+        // without a window standing behind it.
+        services.AddSingleton<IFolderPicker, WindowsFolderPicker>();
+
+        services.AddSingleton<ResultsViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

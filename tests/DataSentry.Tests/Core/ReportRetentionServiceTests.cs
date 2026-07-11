@@ -52,6 +52,9 @@ public class ReportRetentionServiceTests
         public IAsyncEnumerable<FileScanResult> GetResultsAsync(Guid reportId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<IReadOnlyList<FileScanResult>> GetResultsPageAsync(Guid reportId, Recommendation recommendation, int skip, int take, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task DeleteReportAsync(Guid reportId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

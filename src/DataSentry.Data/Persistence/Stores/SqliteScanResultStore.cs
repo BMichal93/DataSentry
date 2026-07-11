@@ -123,6 +123,32 @@ public sealed class SqliteScanResultStore : IScanResultStore
     }
 
     /// <remarks>
+    /// SQLite does the skipping, and it does it on rows that are already indexed by report and ordered
+    /// by insertion. What crosses back into the application is one page — a hundred rows — no matter how
+    /// many million the scan wrote.
+    /// </remarks>
+    public async Task<IReadOnlyList<FileScanResult>> GetResultsPageAsync(
+        Guid reportId,
+        Recommendation recommendation,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        List<FileScanResultEntity> page = await context.Results
+            .AsNoTracking()
+            .Include(result => result.Findings)
+            .Where(result => result.ReportId == reportId && result.Recommendation == recommendation)
+            .OrderBy(result => result.Id)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return page.Select(ScanResultMapper.ToDomain).ToList();
+    }
+
+    /// <remarks>
     /// The grouping happens in SQLite, not in the caller, and that is the point of it: the sizes are
     /// already indexed rows on disk, so the database can throw away every file that has no twin without
     /// a single path being read into memory. What comes back is only the candidates — on a real drive,

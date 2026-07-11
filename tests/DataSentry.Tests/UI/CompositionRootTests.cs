@@ -7,6 +7,7 @@ using DataSentry.Core.Detection;
 using DataSentry.Core.Scanning;
 using DataSentry.Data;
 using DataSentry.UI;
+using DataSentry.UI.Dialogs;
 using DataSentry.UI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -75,6 +76,15 @@ public class CompositionRootTests
             Assert.That(_services.GetRequiredService<IFileContentReader>(), Is.Not.Null);
             Assert.That(_services.GetRequiredService<IScanResultStore>(), Is.Not.Null);
         });
+    }
+
+    [Test]
+    public void CompositionRoot_TheFolderPicker_IsTheRealWindowsDialog()
+    {
+        // The one seam where the view model touches Windows, satisfied — as every seam is — at the
+        // composition root and nowhere else. A view model that opened a dialog itself could not be
+        // tested without a window, which is the whole reason this interface exists.
+        Assert.That(_services.GetRequiredService<IFolderPicker>(), Is.InstanceOf<WindowsFolderPicker>());
     }
 
     [Test]

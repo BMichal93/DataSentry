@@ -38,8 +38,32 @@ public interface IScanResultStore
     /// <summary>Every stored report, newest scan first.</summary>
     Task<IReadOnlyList<ScanReport>> ListReportsAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>The per-file results of a report, streamed for display.</summary>
+    /// <summary>The per-file results of a report, streamed. Every row, in the order they were written.</summary>
     IAsyncEnumerable<FileScanResult> GetResultsAsync(Guid reportId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One screenful of results carrying one recommendation: the files from <paramref name="skip"/>
+    /// onwards, at most <paramref name="take"/> of them, in the order they were scanned.
+    /// </summary>
+    /// <remarks>
+    /// <b>This exists so that the screen never has to hold the tree.</b> A scan of a shared drive can
+    /// return a million rows, and the window can show a hundred — so the hundred is what it asks for,
+    /// and the database does the skipping on disk, where the rows already are. Handing the same job to
+    /// <see cref="GetResultsAsync"/> and stopping early would still walk every row to reach page nine
+    /// hundred; buffering the stream into a list on the way to a grid would put the whole tree in
+    /// memory, which is the one thing the scan itself is built never to do.
+    ///
+    /// The recommendation is a parameter and not a filter applied afterwards for the same reason. The
+    /// seven files that need review are the entire point of the screen, and they may be the last seven
+    /// rows of a million: they have to be reachable in one query, not on page nine thousand of a list
+    /// the user is left to page through.
+    /// </remarks>
+    Task<IReadOnlyList<FileScanResult>> GetResultsPageAsync(
+        Guid reportId,
+        Recommendation recommendation,
+        int skip,
+        int take,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Every file in the report that shares its size with at least one other file, ordered by size so
