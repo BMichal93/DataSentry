@@ -38,7 +38,7 @@ public class MainViewModelTests
 
         await viewModel.ScanAsync();
 
-        Assert.That(viewModel.Status, Is.EqualTo("3 files, 3.1 GB reclaimable, 1 file needs review."));
+        Assert.That(viewModel.Status, Is.EqualTo("3 files scanned, 1 suggested for deletion, 1 needs review."));
     }
 
     [Test]
@@ -50,7 +50,7 @@ public class MainViewModelTests
 
         await viewModel.ScanAsync();
 
-        Assert.That(viewModel.Status, Is.EqualTo("1 file, 0 bytes reclaimable, 0 files need review."));
+        Assert.That(viewModel.Status, Is.EqualTo("1 file scanned, nothing suggested for deletion, nothing needs review."));
     }
 
     [Test]
@@ -92,7 +92,7 @@ public class MainViewModelTests
         Assert.Multiple(() =>
         {
             // The headline is still about the files that were judged, not the ones that were not.
-            Assert.That(viewModel.Status, Does.StartWith("1 file,"));
+            Assert.That(viewModel.Status, Does.StartWith("1 file scanned,"));
             Assert.That(viewModel.HasUnreadableFiles, Is.True);
             Assert.That(viewModel.UnreadableFilesSummary, Is.EqualTo("2 files could not be read, and were not judged."));
             Assert.That(viewModel.UnreadableFiles, Has.Count.EqualTo(2));

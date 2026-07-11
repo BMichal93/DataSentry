@@ -5,7 +5,7 @@ using DataSentry.Core.Models;
 namespace DataSentry.UI.ViewModels;
 
 /// <summary>
-/// Numbers, turned into the words a person would use for them. "3.1 GB", not 3_328_599_654;
+/// Numbers, turned into the words a person would use for them. "482 files", not a count;
 /// "3 IBANs, 12 email addresses", not a list of findings.
 /// </summary>
 /// <remarks>
@@ -16,23 +16,6 @@ namespace DataSentry.UI.ViewModels;
 /// </remarks>
 internal static class PlainLanguage
 {
-    /// <summary>"3.1 GB", "4.1 KB", "0 bytes".</summary>
-    public static string Size(long sizeBytes)
-    {
-        string[] units = ["bytes", "KB", "MB", "GB", "TB"];
-
-        double size = sizeBytes;
-        int unit = 0;
-
-        while (size >= 1024 && unit < units.Length - 1)
-        {
-            size /= 1024;
-            unit++;
-        }
-
-        return unit == 0 ? $"{sizeBytes} bytes" : $"{size:0.#} {units[unit]}";
-    }
-
     /// <summary>"1 file", "482 files".</summary>
     public static string Files(int count) => Count(count, "file");
 

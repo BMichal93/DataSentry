@@ -231,11 +231,23 @@ public sealed class MainViewModel : ObservableObject
                 : "That folder is empty. There is nothing to do.";
         }
 
-        string needingReview = summary.FilesNeedingReview == 1
-            ? "1 file needs review"
-            : $"{summary.FilesNeedingReview:N0} files need review";
+        // The headline counts files, not bytes. DataSentry is not here to free disk space — it is here
+        // to find the files that are a liability, and "3.1 GB reclaimable" answers a question nobody
+        // asked. What can go, and what needs a decision: that is the whole report in one line.
+        string deletable = summary.FilesRecommendedForDeletion switch
+        {
+            0 => "nothing suggested for deletion",
+            1 => "1 suggested for deletion",
+            _ => $"{summary.FilesRecommendedForDeletion:N0} suggested for deletion"
+        };
 
-        return $"{PlainLanguage.Files(summary.FilesScanned)}, " +
-            $"{PlainLanguage.Size(summary.ReclaimableBytes)} reclaimable, {needingReview}.";
+        string needingReview = summary.FilesNeedingReview switch
+        {
+            0 => "nothing needs review",
+            1 => "1 needs review",
+            _ => $"{summary.FilesNeedingReview:N0} need review"
+        };
+
+        return $"{PlainLanguage.Files(summary.FilesScanned)} scanned, {deletable}, {needingReview}.";
     }
 }
