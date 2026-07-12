@@ -10,7 +10,9 @@ DataSentry is a GDPR-aware file cleanup tool for Windows. It scans a directory t
 
 DataSentry recommends; the user decides. Nothing is deleted without explicit confirmation, and deletion always means the Windows recycle bin, never a permanent delete.
 
-![The Search tab after a scan](docs/search-tab.png)
+![The Search tab after a scan: every row says what it found and why it matters](docs/search-tab.png)
+
+Every row is judged by the danger it carries, not by the disk space it frees. A row says what was found in the file and why that matters — and it never says what the data *is*.
 
 ## The GDPR / PII angle
 
@@ -22,7 +24,13 @@ Shared drives accumulate spreadsheets full of personal data that nobody remember
 
 Scan reports themselves follow storage limitation (GDPR Art. 5(1)(e)): they are purged automatically 30 days after the scan.
 
-![A Review row, expanded — types and counts only, never the values](docs/review-row.png)
+### The retention deadline flag
+
+Personal data may not be kept forever, and a file holding it is not just clutter — it is data whose legal basis for being kept is running out, or already has. So for every file with a PII finding, DataSentry compares the later of its creation and last-edit dates against the typical five-year finance/tax retention period. A file inside the last six months of that period, or past it, earns an amber **Retention deadline** badge, and ordinary personal data that would otherwise have been left to rest is raised to **Review**.
+
+DataSentry cannot know the real obligation attached to any given file — periods differ by document type and jurisdiction. The badge is therefore a prompt for a human decision, never a legal assertion: a breached retention period is a reason to review, not a licence to purge.
+
+![A Review row, expanded: the retention deadline explained in plain language, with types and counts only — never the values](docs/review-row.png)
 
 ## Architecture
 
