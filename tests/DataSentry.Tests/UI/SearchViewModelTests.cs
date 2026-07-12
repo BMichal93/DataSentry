@@ -7,6 +7,7 @@ using DataSentry.Core.Models;
 using DataSentry.Core.Scanning;
 using DataSentry.Tests.Fakes;
 using DataSentry.UI.ViewModels;
+using Microsoft.Extensions.Time.Testing;
 
 namespace DataSentry.Tests.UI;
 
@@ -220,6 +221,111 @@ public class SearchViewModelTests
     }
 
     [Test]
+    public async Task ScanAsync_StartTimeStillAhead_WaitsAndSaysWhatWillRunAndWhen()
+    {
+        // "Scan tonight at 22:00", asked at 09:00. Nothing runs until the clock gets there — and while
+        // nothing runs, the screen says what is pending, because a scan the user cannot see is a scan
+        // they will not trust.
+        FakeTimeProvider clock = MovableClock();
+        SearchViewModel viewModel = BuildViewModel(
+            [FileAt("C:/work/report.docx", sizeBytes: 4_096)],
+            timeProvider: clock);
+
+        viewModel.FolderPath = "C:/work";
+        viewModel.StartTimeText = "22:00";
+
+        Task scanning = viewModel.ScanAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsWaitingToScan, Is.True);
+            Assert.That(viewModel.Status, Is.EqualTo("Will scan C:/work today at 22:00. Call it off any time before then."));
+            Assert.That(viewModel.HasResults, Is.False);
+        });
+
+        clock.Advance(TimeSpan.FromHours(12));
+
+        Assert.That(scanning.IsCompleted, Is.False, "Nothing may run before the chosen time.");
+
+        clock.Advance(TimeSpan.FromHours(1));
+
+        await scanning;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsWaitingToScan, Is.False);
+            Assert.That(viewModel.HasResults, Is.True);
+            Assert.That(viewModel.Status, Does.StartWith("1 file scanned,"));
+        });
+    }
+
+    [Test]
+    public async Task ScanAsync_StartTimeAlreadyPassedToday_SaysItWillRunTomorrow()
+    {
+        FakeTimeProvider clock = MovableClock();
+        SearchViewModel viewModel = BuildViewModel([], timeProvider: clock);
+
+        viewModel.FolderPath = "C:/work";
+        viewModel.StartTimeText = "07:00";
+
+        Task scanning = viewModel.ScanAsync();
+
+        Assert.That(viewModel.Status, Is.EqualTo("Will scan C:/work tomorrow at 07:00. Call it off any time before then."));
+
+        viewModel.CancelScan();
+        await scanning;
+    }
+
+    [Test]
+    public async Task ScanAsync_CalledOffWhileWaiting_NothingRunsAndTheScreenSaysSo()
+    {
+        FakeTimeProvider clock = MovableClock();
+        SearchViewModel viewModel = BuildViewModel(
+            [FileAt("C:/work/report.docx", sizeBytes: 4_096)],
+            timeProvider: clock);
+
+        viewModel.FolderPath = "C:/work";
+        viewModel.StartTimeText = "22:00";
+
+        Task scanning = viewModel.ScanAsync();
+
+        viewModel.CancelScan();
+        await scanning;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.Status, Is.EqualTo("Scan called off. Nothing was changed."));
+            Assert.That(viewModel.IsWaitingToScan, Is.False);
+            Assert.That(viewModel.IsScanning, Is.False);
+            Assert.That(viewModel.HasResults, Is.False);
+        });
+
+        // And the moment coming around later must not resurrect it.
+        clock.Advance(TimeSpan.FromDays(1));
+
+        Assert.That(viewModel.HasResults, Is.False);
+    }
+
+    [Test]
+    public async Task ScanAsync_StartTimeThatIsNotATime_ExplainsAndScansNothing()
+    {
+        SearchViewModel viewModel = BuildViewModel([FileAt("C:/work/report.docx", sizeBytes: 4_096)]);
+
+        viewModel.FolderPath = "C:/work";
+        viewModel.StartTimeText = "half past nine";
+
+        await viewModel.ScanAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                viewModel.Status,
+                Is.EqualTo("\"half past nine\" is not a time DataSentry understands. Try 22:00, or leave it empty to scan now."));
+            Assert.That(viewModel.HasResults, Is.False);
+        });
+    }
+
+    [Test]
     public void ToggleSchedulePanel_OpensThePanelAndPutsItAwayAgain()
     {
         // The schedule hides behind the clock icon: closed on arrival, because most visits to this
@@ -241,9 +347,12 @@ public class SearchViewModelTests
         IReadOnlyList<ScanError>? walkErrors = null,
         Action<FileMetadata>? onFileEnumerated = null,
         string? pickedFolder = null,
-        InMemoryScanResultStore? store = null)
+        InMemoryScanResultStore? store = null,
+        TimeProvider? timeProvider = null)
     {
         store ??= new InMemoryScanResultStore();
+        timeProvider ??= new FixedTimeProvider(Now);
+
         var contentReader = new FakeFileContentReader(textByPath);
 
         var scanEngine = new ScanEngine(
@@ -253,20 +362,32 @@ public class SearchViewModelTests
             [new JunkFileRule(), new StaleFileRule()],
             [new IbanDetector()],
             new DuplicateFileSweep(store, contentReader),
-            new FixedTimeProvider(Now));
+            timeProvider);
 
         var results = new ResultsViewModel(
             store,
             new FakeFileRecycler(),
             new FakeFileOpener(),
             new FakeConfirmationPrompt(answer: false),
-            new FixedTimeProvider(Now));
+            timeProvider);
 
         return new SearchViewModel(
             scanEngine,
+            new DelayedScanStart(timeProvider),
             results,
             new ScheduleViewModel(new FakeScanScheduler()),
-            new FakeFolderPicker(pickedFolder));
+            new FakeFolderPicker(pickedFolder),
+            timeProvider);
+    }
+
+    /// <summary>A movable clock at 09:00 UTC on a machine whose local time is UTC, for the delayed scans.</summary>
+    private static FakeTimeProvider MovableClock()
+    {
+        var clock = new FakeTimeProvider(Now);
+
+        clock.SetLocalTimeZone(TimeZoneInfo.Utc);
+
+        return clock;
     }
 
     private static FileMetadata FileAt(string filePath, long sizeBytes)

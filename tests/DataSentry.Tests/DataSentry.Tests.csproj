@@ -13,6 +13,10 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+
+    <!-- A clock the tests can move by hand, so "tonight at 22:00" arrives on demand and a test of an
+         eight-hour wait takes no time at all. -->
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="8.10.0" />
     <PackageReference Include="NUnit" Version="3.14.0" />
     <PackageReference Include="NUnit.Analyzers" Version="3.9.0" />
     <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />

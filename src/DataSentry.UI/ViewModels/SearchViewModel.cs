@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,23 +30,31 @@ public sealed class SearchViewModel : ObservableObject
     private const int MaxUnreadableFilesListed = 100;
 
     private readonly ScanEngine _scanEngine;
+    private readonly DelayedScanStart _delayedStart;
     private readonly IFolderPicker _folderPicker;
+    private readonly TimeProvider _timeProvider;
 
     private CancellationTokenSource? _scanCancellation;
     private ScanReport? _report;
     private string _folderPath = string.Empty;
+    private string _startTimeText = string.Empty;
     private string _status = string.Empty;
     private bool _isScanning;
+    private bool _isWaitingToScan;
     private bool _isSchedulePanelOpen;
 
     public SearchViewModel(
         ScanEngine scanEngine,
+        DelayedScanStart delayedStart,
         ResultsViewModel results,
         ScheduleViewModel schedule,
-        IFolderPicker folderPicker)
+        IFolderPicker folderPicker,
+        TimeProvider timeProvider)
     {
         _scanEngine = scanEngine;
+        _delayedStart = delayedStart;
         _folderPicker = folderPicker;
+        _timeProvider = timeProvider;
 
         Results = results;
         Schedule = schedule;
@@ -88,6 +97,17 @@ public sealed class SearchViewModel : ObservableObject
         set => Set(ref _folderPath, value);
     }
 
+    /// <summary>
+    /// The optional start time on the scan bar: "22:00" to scan tonight, empty to scan now. Empty is
+    /// the default, because the delayed start is the exception — and like every time the user types,
+    /// it is parsed, never trusted.
+    /// </summary>
+    public string StartTimeText
+    {
+        get => _startTimeText;
+        set => Set(ref _startTimeText, value);
+    }
+
     /// <summary>The one line the user reads. Plain language, never a predicate.</summary>
     public string Status
     {
@@ -106,6 +126,17 @@ public sealed class SearchViewModel : ObservableObject
     {
         get => _isScanning;
         private set => Set(ref _isScanning, value);
+    }
+
+    /// <summary>
+    /// Whether a delayed scan is waiting for its start time. While it waits, the status line says what
+    /// will run and when, and the Call off button stands next to it — a pending scan the user cannot
+    /// see or stop is a scan they will not trust.
+    /// </summary>
+    public bool IsWaitingToScan
+    {
+        get => _isWaitingToScan;
+        private set => Set(ref _isWaitingToScan, value);
     }
 
     /// <summary>Whether a finished scan is on screen — there is no list to show before there is.</summary>
@@ -173,9 +204,13 @@ public sealed class SearchViewModel : ObservableObject
     /// </summary>
     public async Task ScanAsync()
     {
-        _scanCancellation = new CancellationTokenSource();
+        if (!TryParseStartTime(out TimeOnly? startTime))
+        {
+            Status = $"\"{StartTimeText}\" is not a time DataSentry understands. Try 22:00, or leave it empty to scan now.";
+            return;
+        }
 
-        IsScanning = true;
+        _scanCancellation = new CancellationTokenSource();
 
         // Reported synchronously, not through Progress<T>: Progress posts its callbacks, and a posted
         // callback can land after the scan has finished and overwrite the summary with "Scanned 3 of
@@ -185,6 +220,13 @@ public sealed class SearchViewModel : ObservableObject
 
         try
         {
+            if (startTime is not null)
+            {
+                await WaitForStartAsync(startTime.Value, _scanCancellation.Token);
+            }
+
+            IsScanning = true;
+
             ScanReport report = await _scanEngine.ScanAsync(
                 new ScanScope(FolderPath),
                 progress,
@@ -194,19 +236,70 @@ public sealed class SearchViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            Status = "Scan cancelled. Nothing was changed.";
+            // Which sentence depends on what was stopped: a scan that never started was not "cancelled",
+            // it was called off — and the user who called it off deserves to hear their own word back.
+            Status = IsWaitingToScan
+                ? "Scan called off. Nothing was changed."
+                : "Scan cancelled. Nothing was changed.";
         }
         finally
         {
             IsScanning = false;
+            IsWaitingToScan = false;
 
             _scanCancellation.Dispose();
             _scanCancellation = null;
         }
     }
 
-    /// <summary>Stops a running scan. Nothing is written and nothing is deleted; there is nothing to undo.</summary>
+    /// <summary>
+    /// Stops a running scan, or calls off one still waiting for its start time. Nothing is written and
+    /// nothing is deleted; there is nothing to undo.
+    /// </summary>
     public void CancelScan() => _scanCancellation?.Cancel();
+
+    /// <summary>
+    /// Announces when the scan will run — today or tomorrow, whichever the clock says — and waits for
+    /// that moment. The delay defers the start and nothing else: what runs afterwards is the same scan,
+    /// the same recommendations, the same confirmation before anything is deleted.
+    /// </summary>
+    private async Task WaitForStartAsync(TimeOnly startTime, CancellationToken cancellationToken)
+    {
+        DateTimeOffset start = _delayedStart.NextOccurrence(startTime);
+
+        string day = start.Date == _timeProvider.GetLocalNow().Date ? "today" : "tomorrow";
+        Status = $"Will scan {FolderPath} {day} at " +
+                 $"{start.ToString("HH\\:mm", CultureInfo.InvariantCulture)}. Call it off any time before then.";
+
+        IsWaitingToScan = true;
+
+        await _delayedStart.WaitUntilAsync(start, cancellationToken);
+
+        // Reached only when the moment arrives — a called-off wait throws past this line, and the
+        // catch above still needs to see that it was the wait that ended, not the scan.
+        IsWaitingToScan = false;
+    }
+
+    /// <summary>An empty box means "now" and parses to null; anything else must be a time of day.</summary>
+    private bool TryParseStartTime(out TimeOnly? startTime)
+    {
+        startTime = null;
+
+        string text = StartTimeText.Trim();
+
+        if (text.Length == 0)
+        {
+            return true;
+        }
+
+        if (!TimeOnly.TryParseExact(text, ["HH:mm", "H:mm"], out TimeOnly parsed))
+        {
+            return false;
+        }
+
+        startTime = parsed;
+        return true;
+    }
 
     private async Task ShowReportAsync(ScanReport report)
     {

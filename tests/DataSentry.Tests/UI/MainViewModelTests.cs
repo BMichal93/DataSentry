@@ -80,9 +80,11 @@ public class MainViewModelTests
 
         var search = new SearchViewModel(
             scanEngine,
+            new DelayedScanStart(new FixedTimeProvider(Now)),
             BuildResults(store),
             new ScheduleViewModel(new FakeScanScheduler()),
-            new FakeFolderPicker(null));
+            new FakeFolderPicker(null),
+            new FixedTimeProvider(Now));
 
         return new MainViewModel(search, new ReportsViewModel(store, BuildResults(store)));
     }
