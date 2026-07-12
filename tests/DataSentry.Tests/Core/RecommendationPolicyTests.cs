@@ -150,6 +150,107 @@ public class RecommendationPolicyTests
             Is.EqualTo("Not opened in 3 years, and it holds personal data (12 email addresses)"));
     }
 
+    /// <summary>
+    /// Ordinary personal data in a file still in use is normally left alone — but not when the file has
+    /// been kept to the edge of its legal welcome. A spreadsheet people still open but nobody has
+    /// changed in six years is exactly the document whose legal basis for existing needs a decision.
+    /// </summary>
+    [TestCase(-6, Recommendation.Review, RetentionDeadline.Breached)]
+    [TestCase(-2, Recommendation.Retain, RetentionDeadline.None)]
+    public void Decide_OrdinaryPiiInFileReadButNotChangedForYears_ReviewsOnceRetentionRunsOut(
+        int yearsSinceLastEdit,
+        Recommendation expectedRecommendation,
+        RetentionDeadline expectedDeadline)
+    {
+        var stillBeingRead = new FileMetadata(
+            "C:/work/payroll-export.xlsx",
+            SizeBytes: 8_192,
+            CreatedUtc: Now.AddYears(yearsSinceLastEdit),
+            LastModifiedUtc: Now.AddYears(yearsSinceLastEdit),
+            LastAccessedUtc: Now.AddDays(-2));
+
+        FileClassification classification = RecommendationPolicy.Decide(
+            stillBeingRead,
+            ruleVerdict: null,
+            [Finding(PiiCategory.Contact, 12, detectorName: "email address")],
+            Now);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(classification.Recommendation, Is.EqualTo(expectedRecommendation));
+            Assert.That(classification.RetentionDeadline, Is.EqualTo(expectedDeadline));
+        });
+    }
+
+    [Test]
+    public void Decide_OrdinaryPiiPastRetentionInFileStillRead_SaysWhyItIsOnTheList()
+    {
+        var stillBeingRead = new FileMetadata(
+            "C:/work/payroll-export.xlsx",
+            SizeBytes: 8_192,
+            CreatedUtc: Now.AddYears(-6),
+            LastModifiedUtc: Now.AddYears(-6),
+            LastAccessedUtc: Now.AddDays(-2));
+
+        FileClassification classification = RecommendationPolicy.Decide(
+            stillBeingRead,
+            ruleVerdict: null,
+            [Finding(PiiCategory.Contact, 12, detectorName: "email address")],
+            Now);
+
+        Assert.That(
+            classification.Reason,
+            Is.EqualTo("Holds personal data (12 email addresses) — kept longer than the 5 years documents like this usually must be"));
+    }
+
+    [Test]
+    public void Decide_FinancialDataPastRetention_KeepsReviewAndAddsTheRetentionNote()
+    {
+        FileClassification classification = RecommendationPolicy.Decide(
+            FileLastTouched(Now.AddYears(-6)),
+            ruleVerdict: null,
+            [Finding(PiiCategory.Financial, 3)],
+            Now);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(classification.Recommendation, Is.EqualTo(Recommendation.Review));
+            Assert.That(classification.RetentionDeadline, Is.EqualTo(RetentionDeadline.Breached));
+            Assert.That(
+                classification.Reason,
+                Is.EqualTo("Financial or identity data — needs a human decision (3 IBANs) — kept longer than the 5 years documents like this usually must be"));
+        });
+    }
+
+    [Test]
+    public void Decide_OrdinaryPiiApproachingRetention_ReviewsBeforeTheClockRunsOut()
+    {
+        FileClassification classification = RecommendationPolicy.Decide(
+            FileLastTouched(Now.AddYears(-5).AddDays(30)),
+            ruleVerdict: null,
+            [Finding(PiiCategory.Contact, 2, detectorName: "email address")],
+            Now);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(classification.Recommendation, Is.EqualTo(Recommendation.Review));
+            Assert.That(classification.RetentionDeadline, Is.EqualTo(RetentionDeadline.Approaching));
+        });
+    }
+
+    /// <summary>A clean file has no retention clock: only personal data has to justify being kept.</summary>
+    [Test]
+    public void Decide_NoPersonalDataInAncientFile_HasNoRetentionDeadline()
+    {
+        FileClassification classification = RecommendationPolicy.Decide(
+            FileLastTouched(Now.AddYears(-8)),
+            Junk,
+            [],
+            Now);
+
+        Assert.That(classification.RetentionDeadline, Is.EqualTo(RetentionDeadline.None));
+    }
+
     private static FileMetadata StaleFile => FileLastTouched(Now.AddYears(-3));
 
     private static FileMetadata FileInUse => FileLastTouched(Now.AddDays(-2));

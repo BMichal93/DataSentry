@@ -127,6 +127,19 @@ A scan over a large shared drive is I/O heavy, and nobody wants it running while
 - The delay defers the scan only. It changes nothing about classification, recommendations, or the confirmation step — the user still reviews and confirms every deletion afterwards, exactly as with an immediate scan. **Nothing is ever deleted unattended.**
 - Waiting is not sleeping in a loop. Schedule against the clock, honour a `CancellationToken`, and survive the machine being idle.
 
+### 14.10 Retention deadline flag on PII documents
+
+**New. Extends §14.2 and §5.**
+
+Personal data may not be kept forever. A document holding PII that has sat untouched for years is not just clutter — it is data whose legal basis for retention is running out, or already has. DataSentry flags it.
+
+- For every file with a PII finding, compare its **creation date and last edit date** against a **typical legal retention period**. The clock runs from the *later* of the two — a document still being edited has not been forgotten, and flagging it would be noise.
+- The status is three-valued: **None** (comfortably inside the period), **Approaching** (inside the warning window before the deadline), **Breached** (older than the period).
+- **Approaching or Breached elevates the file:** ordinary PII that rule 3 of §14.2 would have let rest as *Retain* becomes **Review**, and a file already headed for Review says so in its reason — "worth taking a look" is the whole point of the flag.
+- DataSentry cannot know the actual obligation attached to any given file — retention periods differ by document type and jurisdiction. The flag is therefore a *prompt for a human decision*, never a legal assertion, and it never turns into an automatic delete: **a breached retention period is a reason to review, not a licence to purge.** The rule that a PII finding overrides Delete is untouched.
+- The period and the warning window are **named constants in `DataSentry.Core`** (typical finance/tax retention runs 5–7 years; the constant picks the conservative end), not user settings — same reasoning as §14.6.
+- The status is part of the classification: stored with the result (it is a date comparison, not a matched value — §14.5's storage rule is untouched), and shown on the row in plain language.
+
 ---
 
 ## 15. REVISED — Unchanged from v1.0, restated for emphasis

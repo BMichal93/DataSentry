@@ -223,12 +223,27 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <TextBlock Grid.Column="2"
-                                       Text="{Binding FileName}"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"
-                                       MaxWidth="320" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding FileName}"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           MaxWidth="320" />
+
+                                <!-- The retention clock, on the closed row on purpose: a file held past
+                                     its legal welcome is the one the user must not have to click to find. -->
+                                <Border Margin="8,0,0,0"
+                                        Padding="6,1"
+                                        CornerRadius="4"
+                                        Background="#FFFEF7E0"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding HasRetentionAlert, Converter={StaticResource VisibleWhenTrue}}">
+                                    <TextBlock Text="Retention deadline"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="#FFB05A00" />
+                                </Border>
+                            </StackPanel>
 
                             <TextBlock Grid.Column="3"
                                        Text="{Binding Reason}"
@@ -266,6 +281,13 @@
                                        TextWrapping="Wrap"
                                        Style="{StaticResource SecondaryText}"
                                        Visibility="{Binding HasPii, Converter={StaticResource VisibleWhenTrue}}" />
+
+                            <!-- What the retention badge means, spelled out where there is room to. -->
+                            <TextBlock Text="{Binding RetentionAlert}"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="#FFB05A00"
+                                       Visibility="{Binding HasRetentionAlert, Converter={StaticResource VisibleWhenTrue}}" />
 
                             <!-- The compliant way to see what was found: open the file itself, where
                                  the user's own access controls already guard it. The report never
