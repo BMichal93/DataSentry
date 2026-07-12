@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    # The UI project targets net8.0-windows (WPF), so the build needs a Windows runner.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          # The tests run on the .NET 8 runtime; the SDK from global.json only builds them.
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore DataSentry.sln
+
+      - name: Build
+        run: dotnet build DataSentry.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test DataSentry.sln --configuration Release --no-build

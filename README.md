@@ -1,0 +1,61 @@
+# DataSentry
+
+[![CI](https://github.com/BMichal93/DataSentry/actions/workflows/ci.yml/badge.svg)](https://github.com/BMichal93/DataSentry/actions/workflows/ci.yml)
+
+DataSentry is a GDPR-aware file cleanup tool for Windows. It scans a directory tree, classifies every file, and produces a recommendation per file:
+
+- **Delete** — junk, temporary, stale, or duplicate files.
+- **Retain** — files in active use, or likely under a retention obligation.
+- **Review** — files that appear to contain personal data and need a human decision.
+
+DataSentry recommends; the user decides. Nothing is deleted without explicit confirmation, and deletion always means the Windows recycle bin, never a permanent delete.
+
+![The Search tab after a scan](docs/search-tab.png)
+
+## The GDPR / PII angle
+
+Shared drives accumulate spreadsheets full of personal data that nobody remembers keeping. Finding those files is DataSentry's main job, and it follows three rules without exception:
+
+- **Only types and counts are ever reported** — "3 phone numbers, 1 IBAN", never the matched values themselves. Not on screen, not in logs, not in the database. A tool that copies the data it was built to police would itself be a liability.
+- **Personal data is never auto-deleted.** A PII finding overrides any delete recommendation, because personal data may also be under a legal retention obligation (invoices and tax records typically 5–7 years). Special category data under GDPR Art. 9 — health, biometric, political opinions, and the rest — always lands under Review.
+- **Detection is confidence-scored, never binary.** Formats with a checksum are validated (mod-97 for IBAN, Luhn for payment cards, the PESEL checksum) to cut false positives.
+
+Scan reports themselves follow storage limitation (GDPR Art. 5(1)(e)): they are purged automatically 30 days after the scan.
+
+![A Review row, expanded — types and counts only, never the values](docs/review-row.png)
+
+## Architecture
+
+Three layers in separate projects, with dependencies pointing inward only:
+
+| Layer | Project | Contains | References |
+|---|---|---|---|
+| UI | `DataSentry.UI` | WPF views, view models, composition root | Core (and Data at the composition root only) |
+| Business logic | `DataSentry.Core` | Domain models, scan engine, classification rules, PII detectors | nothing |
+| Data | `DataSentry.Data` | File system access, text extraction, SQLite persistence via EF Core | Core |
+
+`DataSentry.Core` knows nothing about the file system, the database, or the UI — it talks to abstractions (`IFileSource`, `IScanResultStore`) that `DataSentry.Data` implements. That is what makes every classification rule unit-testable without touching a disk.
+
+Each rule (junk, staleness, duplicates) and each PII detector is its own class behind a common interface, so new rules are added without touching existing ones. Scanning is streaming end to end: file contents are hashed lazily and only when a cheaper signal suggests a duplicate, and only the first part of a file is read for PII sampling.
+
+## Build, run, test
+
+Requires the [.NET SDK](https://dotnet.microsoft.com/download) (see `global.json` for the version) on Windows — the UI is WPF and targets `net8.0-windows`.
+
+```powershell
+dotnet build DataSentry.sln
+dotnet run --project src/DataSentry.UI
+dotnet test DataSentry.sln
+```
+
+There is nothing to configure: the SQLite database is a file the app creates on first run, and all defaults are chosen in code.
+
+Scans can also run on a daily schedule via the Windows Task Scheduler (the clock icon next to the search bar); scheduled scans run headlessly and their reports appear in the Reports tab.
+
+## CI
+
+Every push and pull request builds the solution and runs the full NUnit test suite on `windows-latest` — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE).
