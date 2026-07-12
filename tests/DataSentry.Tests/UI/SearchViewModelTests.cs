@@ -326,6 +326,85 @@ public class SearchViewModelTests
     }
 
     [Test]
+    public async Task ScanAsync_PathPastedWithQuotesFromExplorer_ScansTheFolderInsideThem()
+    {
+        // Explorer's "Copy as path" wraps the path in quotes. The quotes are the clipboard's, not the
+        // folder's, and the scan has to see through them — and through stray spaces around them.
+        var store = new InMemoryScanResultStore();
+
+        SearchViewModel viewModel = BuildViewModel(
+            [FileAt(@"C:\work\report.docx", sizeBytes: 4_096)],
+            store: store);
+
+        viewModel.FolderPath = " \"C:\\work\" ";
+
+        await viewModel.ScanAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                viewModel.Status,
+                Is.EqualTo("1 file scanned, nothing suggested for deletion, nothing needs review."));
+            Assert.That(store.CompletedReports.Single().RootPath, Is.EqualTo(@"C:\work"));
+        });
+    }
+
+    [Test]
+    public async Task ScanAsync_PathThatIsNotAFullPath_ExplainsAndScansNothing()
+    {
+        // A relative path would resolve against wherever the process happens to be standing, which is
+        // never the folder the user meant. The box takes full paths only, and says so in its own words.
+        SearchViewModel viewModel = BuildViewModel([FileAt(@"C:\work\report.docx", sizeBytes: 4_096)]);
+
+        viewModel.FolderPath = "work";
+
+        await viewModel.ScanAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                viewModel.Status,
+                Is.EqualTo("\"work\" is not a full folder path. Try one like C:\\Users\\you\\Documents, or pick the folder with Browse."));
+            Assert.That(viewModel.HasResults, Is.False);
+        });
+    }
+
+    [Test]
+    public async Task ScheduleScanAsync_PathPastedWithQuotes_SchedulesTheFolderInsideThem()
+    {
+        // The schedule outlives the session and is replayed by Windows verbatim, so a quote that slips
+        // through here would break every scheduled scan from now on — the folder box is read the same
+        // careful way for the schedule as for the scan.
+        var scheduler = new FakeScanScheduler();
+        SearchViewModel viewModel = BuildViewModel([], scheduler: scheduler);
+
+        viewModel.FolderPath = "\"C:\\work\"";
+
+        await viewModel.ScheduleScanAsync();
+
+        Assert.That(scheduler.Scheduled?.FolderPath, Is.EqualTo(@"C:\work"));
+    }
+
+    [Test]
+    public async Task ScheduleScanAsync_PathThatIsNotAFullPath_ExplainsAndSchedulesNothing()
+    {
+        var scheduler = new FakeScanScheduler();
+        SearchViewModel viewModel = BuildViewModel([], scheduler: scheduler);
+
+        viewModel.FolderPath = "work";
+
+        await viewModel.ScheduleScanAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                viewModel.Status,
+                Is.EqualTo("\"work\" is not a full folder path. Try one like C:\\Users\\you\\Documents, or pick the folder with Browse."));
+            Assert.That(scheduler.Scheduled, Is.Null);
+        });
+    }
+
+    [Test]
     public void ToggleSchedulePanel_OpensThePanelAndPutsItAwayAgain()
     {
         // The schedule hides behind the clock icon: closed on arrival, because most visits to this
@@ -348,7 +427,8 @@ public class SearchViewModelTests
         Action<FileMetadata>? onFileEnumerated = null,
         string? pickedFolder = null,
         InMemoryScanResultStore? store = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        FakeScanScheduler? scheduler = null)
     {
         store ??= new InMemoryScanResultStore();
         timeProvider ??= new FixedTimeProvider(Now);
@@ -375,7 +455,7 @@ public class SearchViewModelTests
             scanEngine,
             new DelayedScanStart(timeProvider),
             results,
-            new ScheduleViewModel(new FakeScanScheduler()),
+            new ScheduleViewModel(scheduler ?? new FakeScanScheduler()),
             new FakeFolderPicker(pickedFolder),
             timeProvider);
     }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -69,7 +70,7 @@ public sealed class SearchViewModel : ObservableObject
 
         // The schedule needs a folder, and the folder lives here — which is why this command does too.
         ScheduleScanCommand = new AsyncRelayCommand(
-            () => Schedule.ScheduleDailyAsync(FolderPath),
+            ScheduleScanAsync,
             () => !string.IsNullOrWhiteSpace(FolderPath));
     }
 
@@ -204,6 +205,11 @@ public sealed class SearchViewModel : ObservableObject
     /// </summary>
     public async Task ScanAsync()
     {
+        if (!TryReadFolderPath(out string folderPath))
+        {
+            return;
+        }
+
         if (!TryParseStartTime(out TimeOnly? startTime))
         {
             Status = $"\"{StartTimeText}\" is not a time DataSentry understands. Try 22:00, or leave it empty to scan now.";
@@ -222,13 +228,13 @@ public sealed class SearchViewModel : ObservableObject
         {
             if (startTime is not null)
             {
-                await WaitForStartAsync(startTime.Value, _scanCancellation.Token);
+                await WaitForStartAsync(folderPath, startTime.Value, _scanCancellation.Token);
             }
 
             IsScanning = true;
 
             ScanReport report = await _scanEngine.ScanAsync(
-                new ScanScope(FolderPath),
+                new ScanScope(folderPath),
                 progress,
                 _scanCancellation.Token);
 
@@ -263,12 +269,12 @@ public sealed class SearchViewModel : ObservableObject
     /// that moment. The delay defers the start and nothing else: what runs afterwards is the same scan,
     /// the same recommendations, the same confirmation before anything is deleted.
     /// </summary>
-    private async Task WaitForStartAsync(TimeOnly startTime, CancellationToken cancellationToken)
+    private async Task WaitForStartAsync(string folderPath, TimeOnly startTime, CancellationToken cancellationToken)
     {
         DateTimeOffset start = _delayedStart.NextOccurrence(startTime);
 
         string day = start.Date == _timeProvider.GetLocalNow().Date ? "today" : "tomorrow";
-        Status = $"Will scan {FolderPath} {day} at " +
+        Status = $"Will scan {folderPath} {day} at " +
                  $"{start.ToString("HH\\:mm", CultureInfo.InvariantCulture)}. Call it off any time before then.";
 
         IsWaitingToScan = true;
@@ -278,6 +284,38 @@ public sealed class SearchViewModel : ObservableObject
         // Reached only when the moment arrives — a called-off wait throws past this line, and the
         // catch above still needs to see that it was the wait that ended, not the scan.
         IsWaitingToScan = false;
+    }
+
+    /// <summary>
+    /// The schedule takes the same folder the scan does, read with the same care. Public for the same
+    /// reason <see cref="ScanAsync"/> is: a test has to be able to await it.
+    /// </summary>
+    public async Task ScheduleScanAsync()
+    {
+        if (TryReadFolderPath(out string folderPath))
+        {
+            await Schedule.ScheduleDailyAsync(folderPath);
+        }
+    }
+
+    /// <summary>
+    /// The folder box, read the way people actually fill it: pasted from Explorer's "Copy as path"
+    /// (which wraps the path in quotes), with stray spaces, sometimes just a folder name. The quotes
+    /// and spaces are peeled off, and what remains must be a full path — a relative one would quietly
+    /// scan wherever the process happens to be standing, which is never the folder the user meant.
+    /// </summary>
+    private bool TryReadFolderPath(out string folderPath)
+    {
+        folderPath = FolderPath.Trim().Trim('"').Trim();
+
+        if (Path.IsPathFullyQualified(folderPath))
+        {
+            return true;
+        }
+
+        Status = $"\"{FolderPath.Trim()}\" is not a full folder path. " +
+                 @"Try one like C:\Users\you\Documents, or pick the folder with Browse.";
+        return false;
     }
 
     /// <summary>An empty box means "now" and parses to null; anything else must be a time of day.</summary>
