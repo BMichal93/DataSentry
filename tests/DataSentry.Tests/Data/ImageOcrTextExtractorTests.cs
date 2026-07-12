@@ -16,6 +16,7 @@ public class ImageOcrTextExtractorTests
     private const int SampleSizeCharacters = 4096;
 
     private string _rootPath = string.Empty;
+    private OcrEngine _ocrEngine = null!;
     private ImageOcrTextExtractor _extractor = null!;
 
     [SetUp]
@@ -23,13 +24,14 @@ public class ImageOcrTextExtractorTests
     {
         _rootPath = Path.Combine(Path.GetTempPath(), $"datasentry-tests-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_rootPath);
-        _extractor = new ImageOcrTextExtractor();
+        _ocrEngine = new OcrEngine();
+        _extractor = new ImageOcrTextExtractor(_ocrEngine);
     }
 
     [TearDown]
     public void TearDown()
     {
-        _extractor.Dispose();
+        _ocrEngine.Dispose();
         Directory.Delete(_rootPath, recursive: true);
     }
 

@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPiiDetector, IbanDetector>();
         services.AddSingleton<IPiiDetector, PaymentCardDetector>();
         services.AddSingleton<IPiiDetector, PeselDetector>();
+        services.AddSingleton<IPiiDetector, PolishIdCardDetector>();
         services.AddSingleton<IPiiDetector, EmailAddressDetector>();
         services.AddSingleton<IPiiDetector, PhoneNumberDetector>();
         services.AddSingleton<IPiiDetector, IpAddressDetector>();

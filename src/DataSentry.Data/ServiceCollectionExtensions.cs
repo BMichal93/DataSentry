@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using DataSentry.Core.Abstractions;
 using DataSentry.Core.Retention;
 using DataSentry.Data.FileSystem;
@@ -39,10 +40,15 @@ public static class ServiceCollectionExtensions
     /// of the formats found there. A new format is a new <see cref="ITextExtractor"/> registered here
     /// — no existing class is touched to add one.
     /// </summary>
+    [SupportedOSPlatform("windows")]
     public static IServiceCollection AddDataSentryFileSystem(this IServiceCollection services)
     {
         services.AddSingleton<IFileSource, FileSystemFileSource>();
         services.AddSingleton<IFileContentReader, FileContentReader>();
+
+        // Shared by every extractor that reads words off pixels; created once because a Tesseract
+        // engine is expensive, disposed by the container because it owns native memory.
+        services.AddSingleton<OcrEngine>();
 
         services.AddSingleton<ITextExtractor, SpreadsheetTextExtractor>();
         services.AddSingleton<ITextExtractor, WordDocumentTextExtractor>();

@@ -138,6 +138,7 @@ public class CompositionRootTests
                 "IBAN",
                 "payment card",
                 "PESEL",
+                "Polish ID card number",
                 "email address",
                 "phone number",
                 "IP address"
