@@ -28,17 +28,20 @@ public class TextExtractorTests
     private const int SampleSizeCharacters = 4096;
 
     private string _rootPath = string.Empty;
+    private OcrEngine _ocrEngine = null!;
 
     [SetUp]
     public void SetUp()
     {
         _rootPath = Path.Combine(Path.GetTempPath(), $"datasentry-tests-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_rootPath);
+        _ocrEngine = new OcrEngine();
     }
 
     [TearDown]
     public void TearDown()
     {
+        _ocrEngine.Dispose();
         Directory.Delete(_rootPath, recursive: true);
     }
 
@@ -109,9 +112,34 @@ public class TextExtractorTests
     {
         string filePath = GivenPdf("Invoice PL61109010140000071219812874");
 
-        string? text = await new PdfTextExtractor().ExtractTextAsync(filePath, SampleSizeCharacters);
+        string? text = await new PdfTextExtractor(_ocrEngine).ExtractTextAsync(filePath, SampleSizeCharacters);
 
         Assert.That(text, Does.Contain("PL61109010140000071219812874"));
+    }
+
+    [Test]
+    public async Task ExtractText_ScannedPdf_ReadsThePrintedWords()
+    {
+        string filePath = GivenScannedPdf("Contact: jan.kowalski@example.com");
+
+        string? text = await new PdfTextExtractor(_ocrEngine).ExtractTextAsync(filePath, SampleSizeCharacters);
+
+        Assert.That(text, Does.Contain("example.com").IgnoreCase,
+            "a scanned declaration has no text layer, and its PII must still reach the detectors");
+    }
+
+    [Test]
+    public async Task ExtractText_PdfMixingTextAndScannedPages_ReadsBoth()
+    {
+        string filePath = GivenPdfWithTextPageThenScannedPage(
+            typedText: "Typed cover page",
+            scannedText: "Scanned attachment: jan.kowalski@example.com");
+
+        string? text = await new PdfTextExtractor(_ocrEngine).ExtractTextAsync(filePath, SampleSizeCharacters);
+
+        Assert.That(text, Does.Contain("Typed cover page"));
+        Assert.That(text, Does.Contain("example.com").IgnoreCase,
+            "the scanned page is read by OCR even when other pages carry a text layer");
     }
 
     [Test]
@@ -197,5 +225,60 @@ public class TextExtractorTests
         File.WriteAllBytes(filePath, builder.Build());
 
         return filePath;
+    }
+
+    /// <summary>A PDF the way a scanner produces one: each page a single picture, no text layer at all.</summary>
+    private string GivenScannedPdf(string printedText)
+    {
+        string filePath = Path.Combine(_rootPath, "scanned.pdf");
+
+        var builder = new PdfDocumentBuilder();
+        AddScannedPage(builder, printedText);
+
+        File.WriteAllBytes(filePath, builder.Build());
+
+        return filePath;
+    }
+
+    private string GivenPdfWithTextPageThenScannedPage(string typedText, string scannedText)
+    {
+        string filePath = Path.Combine(_rootPath, "mixed.pdf");
+
+        var builder = new PdfDocumentBuilder();
+        PdfDocumentBuilder.AddedFont font = builder.AddStandard14Font(Standard14Font.Helvetica);
+
+        builder.AddPage(PageSize.A4).AddText(typedText, 12, new PdfPoint(25, 700), font);
+        AddScannedPage(builder, scannedText);
+
+        File.WriteAllBytes(filePath, builder.Build());
+
+        return filePath;
+    }
+
+    private static void AddScannedPage(PdfDocumentBuilder builder, string printedText)
+    {
+        PdfPageBuilder page = builder.AddPage(PageSize.A4);
+
+        // Placed at the page's width so the rendered page shows the words at print size.
+        page.AddJpeg(
+            RenderTextAsJpeg(printedText),
+            new PdfRectangle(0, 610, 595, 721));
+    }
+
+    /// <summary>Black text on a white background — what the scanner's own output looks like.</summary>
+    private static byte[] RenderTextAsJpeg(string printedText)
+    {
+        using var scan = new System.Drawing.Bitmap(1600, 300);
+        using (var canvas = System.Drawing.Graphics.FromImage(scan))
+        using (var font = new System.Drawing.Font("Arial", 32))
+        {
+            canvas.Clear(System.Drawing.Color.White);
+            canvas.DrawString(printedText, font, System.Drawing.Brushes.Black, new System.Drawing.PointF(40, 100));
+        }
+
+        using var jpegStream = new MemoryStream();
+        scan.Save(jpegStream, System.Drawing.Imaging.ImageFormat.Jpeg);
+
+        return jpegStream.ToArray();
     }
 }

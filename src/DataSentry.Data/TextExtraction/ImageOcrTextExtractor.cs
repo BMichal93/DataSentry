@@ -12,12 +12,7 @@ namespace DataSentry.Data.TextExtraction;
 /// dropped into a shared drive as a JPEG. Without OCR these files hold no text at all, and the PII
 /// most worth finding is exactly the kind that arrives as a scan.
 /// </summary>
-/// <remarks>
-/// OCR is by far the most expensive extraction this project does, so the engine is created once,
-/// lazily, and oversized images are skipped outright. The recognized text is handed to the detectors
-/// like any other sample and goes nowhere else — never logged, never stored.
-/// </remarks>
-public sealed class ImageOcrTextExtractor : ITextExtractor, IDisposable
+public sealed class ImageOcrTextExtractor : ITextExtractor
 {
     /// <summary>
     /// Larger than this and the file is footage or raw camera output, not a scanned document — and
@@ -25,19 +20,15 @@ public sealed class ImageOcrTextExtractor : ITextExtractor, IDisposable
     /// </summary>
     private const long MaxImageSizeBytes = 50 * 1024 * 1024;
 
-    /// <summary>
-    /// Below this, the "text" is the engine hallucinating letters into photo noise. Feeding that to
-    /// the detectors buys false positives and nothing else.
-    /// </summary>
-    private const float MinimumMeanConfidence = 0.40f;
-
     private static readonly string[] SupportedExtensions =
         [".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".gif"];
 
-    private readonly Lazy<TesseractEngine> _engine = new(CreateEngine);
+    private readonly OcrEngine _ocrEngine;
 
-    /// <summary>A Tesseract engine instance processes one image at a time; this enforces that.</summary>
-    private readonly object _engineLock = new();
+    public ImageOcrTextExtractor(OcrEngine ocrEngine)
+    {
+        _ocrEngine = ocrEngine;
+    }
 
     public bool CanExtract(string extension) => SupportedExtensions.Contains(extension);
 
@@ -58,39 +49,8 @@ public sealed class ImageOcrTextExtractor : ITextExtractor, IDisposable
 
         using Pix image = Pix.LoadFromFile(filePath);
 
-        lock (_engineLock)
-        {
-            using Page recognized = _engine.Value.Process(image);
+        string? text = _ocrEngine.RecognizeText(image);
 
-            if (recognized.GetMeanConfidence() < MinimumMeanConfidence)
-            {
-                return null;
-            }
-
-            string text = recognized.GetText();
-
-            return string.IsNullOrWhiteSpace(text) ? null : TextSample.Truncate(text, maxCharacters);
-        }
-    }
-
-    /// <summary>
-    /// The language model ships in the build output next to the app. English covers the digits and
-    /// Latin script that every detector here matches on — PESEL, IBAN, card and phone numbers, email
-    /// addresses — including on documents whose surrounding prose is not English.
-    /// </summary>
-    private static TesseractEngine CreateEngine()
-    {
-        string tessDataPath = Path.Combine(AppContext.BaseDirectory, "tessdata");
-
-        // The shipped model is from tessdata_fast, which only the LSTM engine can load.
-        return new TesseractEngine(tessDataPath, "eng", EngineMode.LstmOnly);
-    }
-
-    public void Dispose()
-    {
-        if (_engine.IsValueCreated)
-        {
-            _engine.Value.Dispose();
-        }
+        return text is null ? null : TextSample.Truncate(text, maxCharacters);
     }
 }

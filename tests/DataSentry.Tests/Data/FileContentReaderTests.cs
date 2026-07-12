@@ -13,6 +13,7 @@ public class FileContentReaderTests
     private const int SampleSizeBytes = 4096;
 
     private string _rootPath = string.Empty;
+    private OcrEngine _ocrEngine = null!;
     private IFileContentReader _contentReader = null!;
 
     [SetUp]
@@ -21,14 +22,16 @@ public class FileContentReaderTests
         _rootPath = Path.Combine(Path.GetTempPath(), $"datasentry-tests-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_rootPath);
 
+        _ocrEngine = new OcrEngine();
         _contentReader = new FileContentReader(
-            [new SpreadsheetTextExtractor(), new WordDocumentTextExtractor(), new PdfTextExtractor()],
+            [new SpreadsheetTextExtractor(), new WordDocumentTextExtractor(), new PdfTextExtractor(_ocrEngine)],
             new PlainTextExtractor());
     }
 
     [TearDown]
     public void TearDown()
     {
+        _ocrEngine.Dispose();
         Directory.Delete(_rootPath, recursive: true);
     }
 
