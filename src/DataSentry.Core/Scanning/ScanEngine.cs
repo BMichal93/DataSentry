@@ -245,7 +245,8 @@ public sealed class ScanEngine
                 classification.Recommendation,
                 classification.RiskLevel,
                 classification.Reason,
-                findings);
+                findings,
+                classification.RetentionDeadline);
         }
         catch (OperationCanceledException)
         {

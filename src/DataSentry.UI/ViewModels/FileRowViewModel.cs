@@ -40,6 +40,7 @@ public sealed class FileRowViewModel : ObservableObject
         // does not carry one — the model refuses to hold it, so the screen cannot leak it.
         PiiSummary = PlainLanguage.Findings(result.Findings);
         WhyItMatters = DescribeDanger(result.Findings);
+        RetentionAlert = DescribeRetentionDeadline(result.RetentionDeadline);
 
         _isRecycled = result.RecycledUtc is not null;
 
@@ -85,6 +86,16 @@ public sealed class FileRowViewModel : ObservableObject
     public string WhyItMatters { get; }
 
     public bool HasPii => PiiSummary.Length > 0;
+
+    /// <summary>
+    /// Why the retention clock puts this file on the user's desk, in a sentence. Empty for the
+    /// overwhelming majority of files, whose personal data — if any — is comfortably inside the
+    /// typical legal retention period.
+    /// </summary>
+    public string RetentionAlert { get; }
+
+    /// <summary>Shown as a badge on the row: this file's retention clock has run out, or nearly has.</summary>
+    public bool HasRetentionAlert => RetentionAlert.Length > 0;
 
     /// <summary>
     /// Whether this row may be sent to the recycle bin at all. False for every Review and Keep row, and
@@ -176,6 +187,15 @@ public sealed class FileRowViewModel : ObservableObject
             "IP addresses, which GDPR treats as personal data when they can be tied to a person.",
         PiiCategory.Keyword =>
             "Terms associated with personal data. Worth a look, though the match is a weak signal on its own.",
+        _ => string.Empty
+    };
+
+    private static string DescribeRetentionDeadline(RetentionDeadline deadline) => deadline switch
+    {
+        RetentionDeadline.Breached =>
+            "This file has been kept longer than documents like this usually must be. The legal basis for holding it may have run out — decide whether it still has one.",
+        RetentionDeadline.Approaching =>
+            "This file is approaching the point where documents like this usually stop having to be kept. Worth deciding its future now, before the clock runs out.",
         _ => string.Empty
     };
 

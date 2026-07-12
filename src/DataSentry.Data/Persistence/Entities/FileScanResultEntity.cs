@@ -23,6 +23,8 @@ public sealed class FileScanResultEntity
 
     public RiskLevel RiskLevel { get; set; }
 
+    public RetentionDeadline RetentionDeadline { get; set; }
+
     public string Reason { get; set; } = string.Empty;
 
     /// <summary>When the user sent this file to the recycle bin. Null while it is still on disk.</summary>

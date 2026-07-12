@@ -4,6 +4,11 @@ namespace DataSentry.Core.Models;
 
 /// <summary>One file, classified — and, if the user has since acted on it, what was done.</summary>
 /// <param name="Reason">Why, in plain language: "Not opened in 3 years", not a predicate.</param>
+/// <param name="RetentionDeadline">
+/// Where this file's personal data stands against the typical legal retention period. Always
+/// <see cref="RetentionDeadline.None"/> for a file with no findings — only personal data has a
+/// clock on it.
+/// </param>
 /// <param name="RecycledUtc">
 /// When the user sent this file to the recycle bin, or null while it is still on disk.
 ///
@@ -24,6 +29,7 @@ public sealed record FileScanResult(
     RiskLevel RiskLevel,
     string Reason,
     IReadOnlyList<PiiFinding> Findings,
+    RetentionDeadline RetentionDeadline = RetentionDeadline.None,
     DateTimeOffset? RecycledUtc = null)
 {
     /// <summary>

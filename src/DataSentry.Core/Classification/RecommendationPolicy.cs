@@ -16,6 +16,12 @@ namespace DataSentry.Core.Classification;
 ///   <item>Nothing personal? Then, and only then, the ordinary junk and staleness rules get their say.</item>
 /// </list>
 ///
+/// One clock cuts across all three finding rules: the legal retention period
+/// (<see cref="LegalRetentionPolicy"/>). A file whose personal data is approaching or past that
+/// deadline is flagged on top of whatever the rules said — and for ordinary personal data the flag
+/// does what staleness does, elevating Retain to Review, because data held to the edge of its legal
+/// basis is exactly the file a human should look at next.
+///
 /// The consequence of that order is the rule the whole tool rests on: <b>a finding overrides a
 /// Delete.</b> Personal data is a liability, but it is just as likely to be under a retention
 /// obligation — invoices and tax records run five to seven years. Deleting it unasked is the one
@@ -34,12 +40,19 @@ public static class RecommendationPolicy
     {
         RiskLevel risk = RiskOf(findings);
 
+        // The retention clock only ticks for files that hold personal data — a clean file may sit
+        // on the drive forever without anyone owing anyone an explanation.
+        RetentionDeadline deadline = findings.Count > 0
+            ? LegalRetentionPolicy.DeadlineFor(file, nowUtc)
+            : RetentionDeadline.None;
+
         if (findings.Any(finding => finding.Category == PiiCategory.SpecialCategory))
         {
             return new FileClassification(
                 Recommendation.Review,
                 risk,
-                $"Special category personal data — needs a human decision ({Describe(findings)})");
+                WithRetentionNote($"Special category personal data — needs a human decision ({Describe(findings)})", deadline),
+                deadline);
         }
 
         if (findings.Any(IsFinancialOrIdentity))
@@ -47,26 +60,45 @@ public static class RecommendationPolicy
             return new FileClassification(
                 Recommendation.Review,
                 risk,
-                $"Financial or identity data — needs a human decision ({Describe(findings)})");
+                WithRetentionNote($"Financial or identity data — needs a human decision ({Describe(findings)})", deadline),
+                deadline);
         }
 
         if (findings.Count > 0)
         {
-            return StalenessPolicy.IsStale(file, nowUtc)
-                ? new FileClassification(
+            if (StalenessPolicy.IsStale(file, nowUtc))
+            {
+                return new FileClassification(
                     Recommendation.Review,
                     risk,
-                    $"{StalenessPolicy.Describe(file, nowUtc)}, and it holds personal data ({Describe(findings)})")
-                : new FileClassification(
-                    Recommendation.Retain,
+                    WithRetentionNote($"{StalenessPolicy.Describe(file, nowUtc)}, and it holds personal data ({Describe(findings)})", deadline),
+                    deadline);
+            }
+
+            if (deadline != RetentionDeadline.None)
+            {
+                return new FileClassification(
+                    Recommendation.Review,
                     risk,
-                    $"In use, and it holds personal data ({Describe(findings)})");
+                    $"Holds personal data ({Describe(findings)}) — {LegalRetentionPolicy.Describe(deadline)}",
+                    deadline);
+            }
+
+            return new FileClassification(
+                Recommendation.Retain,
+                risk,
+                $"In use, and it holds personal data ({Describe(findings)})");
         }
 
         RuleVerdict verdict = ruleVerdict ?? InActiveUse;
 
         return new FileClassification(verdict.Recommendation, RiskLevel.None, verdict.Reason);
     }
+
+    private static string WithRetentionNote(string reason, RetentionDeadline deadline) =>
+        deadline == RetentionDeadline.None
+            ? reason
+            : $"{reason} — {LegalRetentionPolicy.Describe(deadline)}";
 
     private static bool IsFinancialOrIdentity(PiiFinding finding) =>
         finding.Category is PiiCategory.Financial or PiiCategory.Identity;

@@ -17,6 +17,7 @@ internal sealed class FileScanResultConfiguration : IEntityTypeConfiguration<Fil
         // Stored as text: a database someone opens by hand should read as "Delete", not as "0".
         builder.Property(result => result.Recommendation).HasConversion<string>().HasMaxLength(16);
         builder.Property(result => result.RiskLevel).HasConversion<string>().HasMaxLength(16);
+        builder.Property(result => result.RetentionDeadline).HasConversion<string>().HasMaxLength(16);
 
         builder.HasIndex(result => result.ReportId);
 
