@@ -52,6 +52,10 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<ScanEngine>();
 
+        // The delayed start: "scan tonight at 22:00". It owes its place here, not in the UI, to being
+        // arithmetic about clocks rather than anything about windows.
+        services.AddSingleton<DelayedScanStart>();
+
         return services;
     }
 

@@ -22,11 +22,13 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- The search bar: a folder, and Scan. The folder glyph browses; the clock opens the
-             schedule; nothing else is on the bar, because nothing else is the task. -->
+        <!-- The search bar: a folder, an optional start time, and Scan. The folder glyph browses; the
+             clock opens the schedule; nothing else is on the bar, because nothing else is the task. -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -87,14 +89,63 @@
                 </Grid>
             </Border>
 
-            <Button Grid.Column="1"
+            <!-- The delayed start: "at 22:00", or nothing. One box, not a scheduler — the daily
+                 schedule lives behind the clock, and this is a different promise: run once, tonight. -->
+            <StackPanel Grid.Column="1"
+                        Orientation="Horizontal"
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Center"
+                        ToolTip="Start the scan at this time of day — leave it empty to scan now. A time already past today means that time tomorrow.">
+                <TextBlock Text="at"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource SecondaryText}" />
+                <Grid Margin="6,0,0,0">
+                    <TextBox Width="56"
+                             Padding="6,4"
+                             VerticalContentAlignment="Center"
+                             BorderBrush="{StaticResource HairlineBrush}"
+                             Text="{Binding StartTimeText, UpdateSourceTrigger=PropertyChanged}">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsWaitingToScan}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsScanning}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+
+                    <TextBlock Text="now"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"
+                               Foreground="{StaticResource HintTextBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StartTimeText}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </StackPanel>
+
+            <Button Grid.Column="2"
                     Content="Scan"
                     Margin="12,0,0,0"
                     VerticalAlignment="Center"
                     Style="{StaticResource PrimaryButton}"
                     Command="{Binding ScanCommand}" />
 
-            <Button Grid.Column="2"
+            <Button Grid.Column="3"
                     Content="Cancel"
                     Margin="8,0,0,0"
                     VerticalAlignment="Center"
@@ -102,8 +153,18 @@
                     Command="{Binding CancelCommand}"
                     Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhenTrue}}" />
 
+            <!-- The way out of a pending scan. Same stop as Cancel; its own word, because nothing has
+                 started yet and "cancel" would suggest something had. -->
+            <Button Grid.Column="4"
+                    Content="Call off"
+                    Margin="8,0,0,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource QuietButton}"
+                    Command="{Binding CancelCommand}"
+                    Visibility="{Binding IsWaitingToScan, Converter={StaticResource VisibleWhenTrue}}" />
+
             <!-- The clock. Blue when a daily scan is set, grey when not — the icon is the status. -->
-            <Button Grid.Column="3"
+            <Button Grid.Column="5"
                     Content="&#xE823;"
                     Margin="8,0,0,0"
                     VerticalAlignment="Center"
