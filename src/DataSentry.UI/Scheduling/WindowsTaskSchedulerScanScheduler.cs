@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
@@ -30,7 +31,7 @@ public sealed class WindowsTaskSchedulerScanScheduler : IScanScheduler
     public async Task ScheduleDailyScanAsync(string folderPath, TimeOnly startTime)
     {
         // The action the task runs: this very executable, in headless mode, on that folder.
-        string command = $"\"{Environment.ProcessPath}\" {HeadlessScan.ScanArgument} \"{folderPath}\"";
+        string command = $"\"{Environment.ProcessPath}\" {HeadlessScan.ScanArgument} {QuoteForCommandLine(folderPath)}";
 
         (int exitCode, string output) = await RunSchtasksAsync(
             "/Create", "/F",
@@ -92,6 +93,23 @@ public sealed class WindowsTaskSchedulerScanScheduler : IScanScheduler
     private static string? ElementValue(XDocument document, string localName) =>
         document.Descendants().FirstOrDefault(element => element.Name.LocalName == localName)?.Value;
 
+    /// <summary>
+    /// Wraps the folder in the quotes the command line needs. A path ending in a backslash cannot be
+    /// quoted as-is: Windows command-line parsing reads <c>\"</c> as an escaped quote, so
+    /// <c>--scan "C:\Data\"</c> would swallow the closing quote and hand the headless launch garbage.
+    /// The trailing backslash is trimmed away — except on a drive root like <c>C:\</c>, where the
+    /// backslash *is* the path (bare <c>C:</c> means "the current folder on C:"), so there it is
+    /// doubled instead, which the parser reads back as the single backslash it stands for.
+    /// </summary>
+    private static string QuoteForCommandLine(string folderPath)
+    {
+        string folder = Path.TrimEndingDirectorySeparator(folderPath);
+
+        return folder.EndsWith(Path.DirectorySeparatorChar)
+            ? $"\"{folder}\\\""
+            : $"\"{folder}\"";
+    }
+
     /// <summary>The path between the quotes of <c>--scan "C:\folder"</c>.</summary>
     private static string? FolderPathFrom(string arguments)
     {
@@ -105,7 +123,14 @@ public sealed class WindowsTaskSchedulerScanScheduler : IScanScheduler
         int openingQuote = arguments.IndexOf('"', scanFlag);
         int closingQuote = openingQuote < 0 ? -1 : arguments.IndexOf('"', openingQuote + 1);
 
-        return closingQuote < 0 ? null : arguments[(openingQuote + 1)..closingQuote];
+        if (closingQuote < 0)
+        {
+            return null;
+        }
+
+        // A drive root went in with its backslash doubled (see QuoteForCommandLine); reading it back
+        // undoes that, so the schedule shows "C:\" and not "C:\\".
+        return Path.TrimEndingDirectorySeparator(arguments[(openingQuote + 1)..closingQuote]);
     }
 
     private static async Task<(int ExitCode, string Output)> RunSchtasksAsync(params string[] arguments)
