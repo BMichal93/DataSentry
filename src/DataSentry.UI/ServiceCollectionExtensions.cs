@@ -82,6 +82,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFileOpener, ShellFileOpener>();
 
         services.AddSingleton<ScheduleViewModel>();
+        services.AddSingleton<ExclusionListViewModel>();
 
         // Transient, because Search and Reports each hold their own result list: browsing an old
         // report must never disturb the scan sitting on the other tab.

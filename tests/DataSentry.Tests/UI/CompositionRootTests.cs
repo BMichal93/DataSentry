@@ -81,6 +81,22 @@ public class CompositionRootTests
     }
 
     [Test]
+    public void CompositionRoot_TheDefaultExclusions_AreRegisteredAndHandedToTheExclusionList()
+    {
+        // The regression this guards against: DefaultExclusions.ForThisMachine() existing but nothing
+        // in the container ever asking for it, so the editable list on screen would start out empty.
+        IReadOnlyList<string> defaults = _services.GetRequiredService<IReadOnlyList<string>>();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(defaults, Is.Not.Empty);
+            Assert.That(
+                _services.GetRequiredService<ExclusionListViewModel>().ExcludedPaths,
+                Is.EqualTo(defaults));
+        });
+    }
+
+    [Test]
     public void CompositionRoot_TheScanScheduler_IsTheRealWindowsTaskScheduler()
     {
         Assert.That(

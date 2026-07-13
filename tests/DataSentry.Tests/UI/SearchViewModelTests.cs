@@ -405,6 +405,28 @@ public class SearchViewModelTests
     }
 
     [Test]
+    public async Task ScanAsync_ExcludedFoldersOnTheList_ReachTheScopeTheEngineWalks()
+    {
+        // The exclusion list is only worth having if a scan actually honours it — this is the seam
+        // where a defaults-with-no-caller regression would show up again.
+        var exclusions = new ExclusionListViewModel(
+            ["C:/Windows", "C:/Program Files"],
+            new FakeFolderPicker(null));
+
+        ScanScope? scopeReceived = null;
+        SearchViewModel viewModel = BuildViewModel(
+            [],
+            exclusions: exclusions,
+            onScopeReceived: scope => scopeReceived = scope);
+
+        viewModel.FolderPath = "C:/work";
+
+        await viewModel.ScanAsync();
+
+        Assert.That(scopeReceived?.ExcludedPaths, Is.EqualTo(new[] { "C:/Windows", "C:/Program Files" }));
+    }
+
+    [Test]
     public void ToggleSchedulePanel_OpensThePanelAndPutsItAwayAgain()
     {
         // The schedule hides behind the clock icon: closed on arrival, because most visits to this
@@ -428,7 +450,9 @@ public class SearchViewModelTests
         string? pickedFolder = null,
         InMemoryScanResultStore? store = null,
         TimeProvider? timeProvider = null,
-        FakeScanScheduler? scheduler = null)
+        FakeScanScheduler? scheduler = null,
+        ExclusionListViewModel? exclusions = null,
+        Action<ScanScope>? onScopeReceived = null)
     {
         store ??= new InMemoryScanResultStore();
         timeProvider ??= new FixedTimeProvider(Now);
@@ -436,7 +460,7 @@ public class SearchViewModelTests
         var contentReader = new FakeFileContentReader(textByPath);
 
         var scanEngine = new ScanEngine(
-            new FakeFileSource(files, walkErrors, onFileEnumerated),
+            new FakeFileSource(files, walkErrors, onFileEnumerated, onScopeReceived),
             contentReader,
             store,
             [new JunkFileRule(), new StaleFileRule()],
@@ -456,6 +480,7 @@ public class SearchViewModelTests
             new DelayedScanStart(timeProvider),
             results,
             new ScheduleViewModel(scheduler ?? new FakeScanScheduler()),
+            exclusions ?? new ExclusionListViewModel([], new FakeFolderPicker(null)),
             new FakeFolderPicker(pickedFolder),
             timeProvider);
     }

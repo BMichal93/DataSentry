@@ -15,15 +15,18 @@ internal sealed class FakeFileSource : IFileSource
     private readonly IReadOnlyList<FileMetadata> _files;
     private readonly IReadOnlyList<ScanError> _walkErrors;
     private readonly Action<FileMetadata>? _onFileEnumerated;
+    private readonly Action<ScanScope>? _onScopeReceived;
 
     public FakeFileSource(
         IReadOnlyList<FileMetadata> files,
         IReadOnlyList<ScanError>? walkErrors = null,
-        Action<FileMetadata>? onFileEnumerated = null)
+        Action<FileMetadata>? onFileEnumerated = null,
+        Action<ScanScope>? onScopeReceived = null)
     {
         _files = files;
         _walkErrors = walkErrors ?? [];
         _onFileEnumerated = onFileEnumerated;
+        _onScopeReceived = onScopeReceived;
     }
 
     public async IAsyncEnumerable<FileMetadata> EnumerateFilesAsync(
@@ -31,6 +34,8 @@ internal sealed class FakeFileSource : IFileSource
         Action<ScanError> reportError,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        _onScopeReceived?.Invoke(scope);
+
         foreach (ScanError walkError in _walkErrors)
         {
             reportError(walkError);

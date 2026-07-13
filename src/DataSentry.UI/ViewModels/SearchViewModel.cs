@@ -49,6 +49,7 @@ public sealed class SearchViewModel : ObservableObject
         DelayedScanStart delayedStart,
         ResultsViewModel results,
         ScheduleViewModel schedule,
+        ExclusionListViewModel exclusions,
         IFolderPicker folderPicker,
         TimeProvider timeProvider)
     {
@@ -59,6 +60,7 @@ public sealed class SearchViewModel : ObservableObject
 
         Results = results;
         Schedule = schedule;
+        Exclusions = exclusions;
 
         BrowseCommand = new AsyncRelayCommand(PickFolderAsync);
         ScanCommand = new AsyncRelayCommand(ScanAsync, () => !string.IsNullOrWhiteSpace(FolderPath));
@@ -91,6 +93,9 @@ public sealed class SearchViewModel : ObservableObject
 
     /// <summary>The daily scheduled scan, if the user has set one.</summary>
     public ScheduleViewModel Schedule { get; }
+
+    /// <summary>The folders this scan will skip outright — visible and editable, never a hidden default.</summary>
+    public ExclusionListViewModel Exclusions { get; }
 
     public string FolderPath
     {
@@ -234,7 +239,7 @@ public sealed class SearchViewModel : ObservableObject
             IsScanning = true;
 
             ScanReport report = await _scanEngine.ScanAsync(
-                new ScanScope(folderPath),
+                new ScanScope(folderPath, Exclusions.ExcludedPaths),
                 progress,
                 _scanCancellation.Token);
 

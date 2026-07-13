@@ -19,14 +19,17 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- The search bar: a folder, an optional start time, and Scan. The folder glyph browses; the
-             clock opens the schedule; nothing else is on the bar, because nothing else is the task. -->
+             clock opens the schedule; the filter opens the exclusion list; nothing else is on the bar,
+             because nothing else is the task. -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -180,6 +183,17 @@
                     </Style>
                 </Button.Style>
             </Button>
+
+            <!-- The folders this scan skips outright — Windows, Program Files, and anything the user
+                 has added. Visible and editable rather than a silent default: a scan that quietly
+                 steered around folders nobody saw would not be a default anyone could trust. -->
+            <Button Grid.Column="6"
+                    Content="&#xE71C;"
+                    Margin="8,0,0,0"
+                    VerticalAlignment="Center"
+                    ToolTip="Folders this scan skips"
+                    Style="{StaticResource IconButton}"
+                    Command="{Binding Exclusions.TogglePanelCommand}" />
         </Grid>
 
         <!-- The schedule, revealed by the clock and only by the clock. One folder, one hour,
@@ -239,7 +253,46 @@
             </StackPanel>
         </Border>
 
-        <ProgressBar Grid.Row="2"
+        <!-- The exclusion list, revealed by the filter icon and only by it. Each folder can be taken
+             off the list; "Add a folder" grows it. Resets to the machine defaults on the next launch —
+             there is no settings file yet to remember an edit past this session. -->
+        <Border Grid.Row="2"
+                Margin="0,12,0,0"
+                Padding="18,12"
+                Background="White"
+                BorderBrush="{StaticResource HairlineBrush}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Visibility="{Binding Exclusions.IsPanelOpen, Converter={StaticResource VisibleWhenTrue}}">
+            <StackPanel>
+                <TextBlock Text="This scan skips these folders entirely:"
+                           Style="{StaticResource SecondaryText}" />
+
+                <ItemsControl ItemsSource="{Binding Exclusions.Folders}" Margin="0,8,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="{Binding Path}"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource SecondaryText}" />
+                                <Button Content="Remove"
+                                        Margin="12,0,0,0"
+                                        Style="{StaticResource QuietButton}"
+                                        Command="{Binding RemoveCommand}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button Content="Add a folder…"
+                        Margin="0,8,0,0"
+                        HorizontalAlignment="Left"
+                        Style="{StaticResource QuietButton}"
+                        Command="{Binding Exclusions.AddFolderCommand}" />
+            </StackPanel>
+        </Border>
+
+        <ProgressBar Grid.Row="3"
                      Height="3"
                      Margin="0,16,0,0"
                      IsIndeterminate="True"
@@ -249,7 +302,7 @@
                      Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhenTrue}}" />
 
         <!-- The summary. For most users this is the first thing on screen and the only thing. -->
-        <TextBlock Grid.Row="3"
+        <TextBlock Grid.Row="4"
                    Margin="4,22,0,0"
                    FontSize="19"
                    TextWrapping="Wrap"
@@ -258,7 +311,7 @@
                    Visibility="{Binding HasStatus, Converter={StaticResource VisibleWhenTrue}}" />
 
         <!-- A footnote, not the headline: nothing here is a decision, only what DataSentry could not see. -->
-        <Expander Grid.Row="4"
+        <Expander Grid.Row="5"
                   Margin="4,10,0,0"
                   Foreground="{StaticResource SecondaryTextBrush}"
                   Header="{Binding UnreadableFilesSummary}"
@@ -284,7 +337,7 @@
         </Expander>
 
         <!-- The files behind the headline, one quiet line each until clicked. -->
-        <views:ResultsView Grid.Row="5"
+        <views:ResultsView Grid.Row="6"
                            Margin="0,14,0,0"
                            DataContext="{Binding Results}"
                            Visibility="{Binding DataContext.HasFilesToShow,
