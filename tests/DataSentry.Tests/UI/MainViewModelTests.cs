@@ -6,6 +6,7 @@ using DataSentry.Core.Detection;
 using DataSentry.Core.Models;
 using DataSentry.Core.Scanning;
 using DataSentry.Tests.Fakes;
+using DataSentry.UI.Reporting;
 using DataSentry.UI.ViewModels;
 
 namespace DataSentry.Tests.UI;
@@ -96,6 +97,8 @@ public class MainViewModelTests
             new FakeFileRecycler(),
             new FakeFileOpener(),
             new FakeConfirmationPrompt(answer: false),
+            new FakeSaveFilePicker(),
+            new ScanReportExporter(),
             new FixedTimeProvider(Now));
 
     private static Task SeedReportAsync(InMemoryScanResultStore store, string rootPath)

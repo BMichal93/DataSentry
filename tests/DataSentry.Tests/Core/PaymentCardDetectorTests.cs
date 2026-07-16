@@ -63,7 +63,7 @@ public class PaymentCardDetectorTests
     }
 
     [Test]
-    public void Detect_SeveralCardNumbers_ReportsTheCountAndNothingElse()
+    public void Detect_SeveralCardNumbers_ReportsTheCountAndOnlyRedactedSnippets()
     {
         PiiFinding? finding = _detector.Detect(
             """
@@ -73,7 +73,23 @@ public class PaymentCardDetectorTests
             Dupont,3782 822463 10005
             """);
 
-        Assert.That(finding?.MatchCount, Is.EqualTo(3));
+        Assert.Multiple(() =>
+        {
+            Assert.That(finding?.MatchCount, Is.EqualTo(3));
+            Assert.That(finding?.RedactedSnippets, Has.Count.EqualTo(3));
+            Assert.That(
+                finding?.RedactedSnippets,
+                Has.None.Contains("55554444"),
+                "a redacted snippet must never contain the card number it stands for");
+        });
+    }
+
+    [Test]
+    public void Detect_CardNumber_IsRedactedToItsFirstAndLastTwoCharacters()
+    {
+        PiiFinding? finding = _detector.Detect("Card on file: 4111 1111 1111 1111.");
+
+        Assert.That(finding?.RedactedSnippets, Is.EqualTo(new[] { "41***************11" }));
     }
 
     [Test]

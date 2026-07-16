@@ -24,22 +24,31 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- The one destructive action, on the heading it belongs to. The button says the number,
-                 the prompt behind it asks again, and the recycle bin keeps the way back — three
-                 chances to stop. -->
-            <Button Grid.Column="1"
-                    VerticalAlignment="Center"
-                    Content="{Binding DeleteButtonText}"
-                    Command="{Binding DeleteSuggestedCommand}"
-                    Visibility="{Binding CanDelete, Converter={StaticResource VisibleWhenTrue}}">
-                <Button.Style>
-                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
-                        <Setter Property="Background" Value="{StaticResource DangerBrush}" />
-                        <Setter Property="Padding" Value="16,6" />
-                        <Setter Property="FontSize" Value="12" />
-                    </Style>
-                </Button.Style>
-            </Button>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- The session-only export: every row of this report, types and redacted snippets
+                     only, to a CSV file the user chooses. Available on any heading with a report to
+                     export, not just the one on screen. -->
+                <Button Content="Export"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource QuietButton}"
+                        Command="{Binding ExportCommand}"
+                        Visibility="{Binding CanExport, Converter={StaticResource VisibleWhenTrue}}" />
+
+                <!-- The one destructive action, on the heading it belongs to. The button says the
+                     number, the prompt behind it asks again, and the recycle bin keeps the way back —
+                     three chances to stop. -->
+                <Button Content="{Binding DeleteButtonText}"
+                        Command="{Binding DeleteSuggestedCommand}"
+                        Visibility="{Binding CanDelete, Converter={StaticResource VisibleWhenTrue}}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+                            <Setter Property="Background" Value="{StaticResource DangerBrush}" />
+                            <Setter Property="Padding" Value="16,6" />
+                            <Setter Property="FontSize" Value="12" />
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
 
             <!-- Which verdict is on screen. The open chip takes the verdict's own colour, faintly. -->
             <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -96,6 +105,10 @@
             <TextBlock Text="{Binding DeletionOutcome}"
                        Foreground="{StaticResource TextBrush}"
                        Visibility="{Binding HasDeletionOutcome, Converter={StaticResource VisibleWhenTrue}}" />
+
+            <TextBlock Text="{Binding ExportOutcome}"
+                       Foreground="{StaticResource TextBrush}"
+                       Visibility="{Binding HasExportOutcome, Converter={StaticResource VisibleWhenTrue}}" />
 
             <Expander Margin="0,6,0,0"
                       Header="What could not be deleted, and why"
@@ -281,6 +294,23 @@
                                        TextWrapping="Wrap"
                                        Style="{StaticResource SecondaryText}"
                                        Visibility="{Binding HasPii, Converter={StaticResource VisibleWhenTrue}}" />
+
+                            <!-- The redacted shape of each match — "48*********12" — for the scan that
+                                 is still running in this process. Empty and hidden for a report reopened
+                                 from an earlier session, whose snippets did not survive the restart. -->
+                            <ItemsControl ItemsSource="{Binding Snippets}"
+                                          Margin="0,6,0,0"
+                                          Visibility="{Binding HasSnippets, Converter={StaticResource VisibleWhenTrue}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"
+                                                   Style="{StaticResource SecondaryText}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
                             <!-- What the retention badge means, spelled out where there is room to. -->
                             <TextBlock Text="{Binding RetentionAlert}"

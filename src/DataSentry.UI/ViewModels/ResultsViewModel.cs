@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -8,6 +9,7 @@ using DataSentry.Core.Abstractions;
 using DataSentry.Core.Models;
 using DataSentry.UI.Dialogs;
 using DataSentry.UI.FileActions;
+using DataSentry.UI.Reporting;
 
 namespace DataSentry.UI.ViewModels;
 
@@ -56,6 +58,8 @@ public sealed class ResultsViewModel : ObservableObject
     private readonly IFileRecycler _fileRecycler;
     private readonly IFileOpener _fileOpener;
     private readonly IConfirmationPrompt _confirmationPrompt;
+    private readonly ISaveFilePicker _saveFilePicker;
+    private readonly ScanReportExporter _exporter;
     private readonly TimeProvider _timeProvider;
 
     /// <summary>
@@ -75,18 +79,23 @@ public sealed class ResultsViewModel : ObservableObject
     private int _pageIndex;
     private int _pendingDeletion;
     private string _deletionOutcome = string.Empty;
+    private string _exportOutcome = string.Empty;
 
     public ResultsViewModel(
         IScanResultStore resultStore,
         IFileRecycler fileRecycler,
         IFileOpener fileOpener,
         IConfirmationPrompt confirmationPrompt,
+        ISaveFilePicker saveFilePicker,
+        ScanReportExporter exporter,
         TimeProvider timeProvider)
     {
         _resultStore = resultStore;
         _fileRecycler = fileRecycler;
         _fileOpener = fileOpener;
         _confirmationPrompt = confirmationPrompt;
+        _saveFilePicker = saveFilePicker;
+        _exporter = exporter;
         _timeProvider = timeProvider;
 
         ShowNeedsReviewCommand = new AsyncRelayCommand(() => ShowAsync(Recommendation.Review));
@@ -97,6 +106,7 @@ public sealed class ResultsViewModel : ObservableObject
         PreviousPageCommand = new AsyncRelayCommand(PreviousPageAsync, () => HasPreviousPage);
 
         DeleteSuggestedCommand = new AsyncRelayCommand(DeleteSuggestedAsync, () => CanDelete);
+        ExportCommand = new AsyncRelayCommand(ExportAsync, () => CanExport);
     }
 
     /// <summary>The page the user is looking at. Never longer than <see cref="PageSize"/>.</summary>
@@ -114,6 +124,9 @@ public sealed class ResultsViewModel : ObservableObject
 
     /// <summary>Sends every file still suggested for deletion, bar the ones the user unticked, to the recycle bin.</summary>
     public ICommand DeleteSuggestedCommand { get; }
+
+    /// <summary>Writes every row of this report to a CSV file the user chooses.</summary>
+    public ICommand ExportCommand { get; }
 
     /// <summary>Which of the three headings is open. The view highlights it; nothing else reads it.</summary>
     public Recommendation Shown
@@ -165,6 +178,22 @@ public sealed class ResultsViewModel : ObservableObject
 
     public bool HasDeletionOutcome => DeletionOutcome.Length > 0;
 
+    /// <summary>Whether this report has anything in it worth exporting.</summary>
+    public bool CanExport => _summary.FilesScanned > 0;
+
+    /// <summary>What happened last time the user asked to export: "Report exported." or why it could not be.</summary>
+    public string ExportOutcome
+    {
+        get => _exportOutcome;
+        private set
+        {
+            Set(ref _exportOutcome, value);
+            Notify(nameof(HasExportOutcome));
+        }
+    }
+
+    public bool HasExportOutcome => ExportOutcome.Length > 0;
+
     /// <summary>
     /// The files that would not go — locked, already gone, access denied. Counted and listed exactly as
     /// the scan reports the files it could not read, and for the same reason: a delete that silently
@@ -211,12 +240,44 @@ public sealed class ResultsViewModel : ObservableObject
         _sparedPaths.Clear();
         DeletionOutcome = string.Empty;
         DeletionFailures = [];
+        ExportOutcome = string.Empty;
 
         Notify(nameof(HasDeletionFailures));
         Notify(nameof(DeletionFailures));
+        Notify(nameof(CanExport));
 
         await RefreshPendingDeletionAsync();
         await ShowAsync(FirstHeadingWorthOpening(summary));
+    }
+
+    /// <summary>
+    /// Writes every row of this report — not just the page on screen — to a CSV file the user chooses.
+    /// Public, like the scan itself, so a test can await it; a command cannot be.
+    /// </summary>
+    /// <remarks>
+    /// Reads the whole report through <see cref="IScanResultStore.GetResultsAsync"/> rather than
+    /// <see cref="Rows"/>, which holds at most one page of a hundred: the report may be thousands of
+    /// files, and the export is supposed to be the whole of it, not whatever happened to be on screen
+    /// when the button was pressed.
+    /// </remarks>
+    public async Task ExportAsync()
+    {
+        string? destinationPath = await _saveFilePicker.PickSaveFileAsync($"datasentry-scan-{_reportId:N}.csv");
+
+        if (destinationPath is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _exporter.ExportAsync(_resultStore.GetResultsAsync(_reportId), destinationPath);
+            ExportOutcome = "Report exported.";
+        }
+        catch (IOException failure)
+        {
+            ExportOutcome = $"Could not export the report: {failure.Message}";
+        }
     }
 
     /// <summary>Opens one of the three headings, at its first page.</summary>

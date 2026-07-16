@@ -64,7 +64,7 @@ public class IpAddressDetectorTests
     }
 
     [Test]
-    public void Detect_SeveralAddresses_ReportsTheCountAndNothingElse()
+    public void Detect_SeveralAddresses_ReportsTheCountAndOnlyRedactedSnippets()
     {
         PiiFinding? finding = _detector.Detect(
             """
@@ -74,7 +74,23 @@ public class IpAddressDetectorTests
             Dupont,2001:db8:85a3::8a2e:370:7334
             """);
 
-        Assert.That(finding?.MatchCount, Is.EqualTo(3));
+        Assert.Multiple(() =>
+        {
+            Assert.That(finding?.MatchCount, Is.EqualTo(3));
+            Assert.That(finding?.RedactedSnippets, Has.Count.EqualTo(3));
+            Assert.That(
+                finding?.RedactedSnippets,
+                Has.None.Contains("168.0"),
+                "a redacted snippet must never contain the address it stands for");
+        });
+    }
+
+    [Test]
+    public void Detect_IpV4Address_IsRedactedToItsFirstAndLastTwoCharacters()
+    {
+        PiiFinding? finding = _detector.Detect("Resolver at 192.168.0.14 answered.");
+
+        Assert.That(finding?.RedactedSnippets, Is.EqualTo(new[] { "19********14" }));
     }
 
     [Test]

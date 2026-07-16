@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using DataSentry.Core.Models;
 using DataSentry.Tests.Fakes;
+using DataSentry.UI.Reporting;
 using DataSentry.UI.ViewModels;
 
 namespace DataSentry.Tests.UI;
@@ -121,6 +122,8 @@ public class ReportsViewModelTests
             new FakeFileRecycler(),
             new FakeFileOpener(),
             new FakeConfirmationPrompt(answer: false),
+            new FakeSaveFilePicker(),
+            new ScanReportExporter(),
             new FixedTimeProvider(Now)));
 
     private static void SeedReport(InMemoryScanResultStore store, string rootPath, IReadOnlyList<FileScanResult> results)

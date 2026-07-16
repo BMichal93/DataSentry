@@ -45,6 +45,7 @@ public sealed partial class PeselDetector : IPiiDetector
     {
         int matchCount = 0;
         double confidence = 0;
+        var snippets = new List<string>();
 
         foreach (Match candidate in ElevenDigits().Matches(text))
         {
@@ -57,11 +58,12 @@ public sealed partial class PeselDetector : IPiiDetector
 
             matchCount++;
             confidence = Math.Max(confidence, candidateConfidence);
+            snippets.Add(SnippetRedactor.Redact(candidate.Value));
         }
 
         return matchCount == 0
             ? null
-            : new PiiFinding(Category, Name, matchCount, confidence);
+            : new PiiFinding(Category, Name, matchCount, confidence, snippets);
     }
 
     /// <summary>How sure we are that these eleven digits identify a person — zero when they do not.</summary>

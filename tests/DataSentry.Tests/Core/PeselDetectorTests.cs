@@ -59,7 +59,7 @@ public class PeselDetectorTests
     }
 
     [Test]
-    public void Detect_SeveralIdentityNumbers_ReportsTheCountAndNothingElse()
+    public void Detect_SeveralIdentityNumbers_ReportsTheCountAndOnlyRedactedSnippets()
     {
         PiiFinding? finding = _detector.Detect(
             """
@@ -69,7 +69,23 @@ public class PeselDetectorTests
             Wiśniewska,02210112348
             """);
 
-        Assert.That(finding?.MatchCount, Is.EqualTo(3));
+        Assert.Multiple(() =>
+        {
+            Assert.That(finding?.MatchCount, Is.EqualTo(3));
+            Assert.That(finding?.RedactedSnippets, Has.Count.EqualTo(3));
+            Assert.That(
+                finding?.RedactedSnippets,
+                Has.None.Contains("031500"),
+                "a redacted snippet must never contain the PESEL it stands for");
+        });
+    }
+
+    [Test]
+    public void Detect_IdentityNumber_IsRedactedToItsFirstAndLastTwoCharacters()
+    {
+        PiiFinding? finding = _detector.Detect("PESEL: 90031500015 on file.");
+
+        Assert.That(finding?.RedactedSnippets, Is.EqualTo(new[] { "90*******15" }));
     }
 
     [Test]

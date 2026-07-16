@@ -48,27 +48,29 @@ public sealed partial class IbanDetector : IPiiDetector
     {
         int matchCount = 0;
         double confidence = 0;
+        var snippets = new List<string>();
 
         foreach (Match candidateStart in IbanPrefix().Matches(text))
         {
-            double candidateConfidence = ScoreCandidateAt(text, candidateStart.Index);
+            (double candidateConfidence, string? candidate) = ScoreCandidateAt(text, candidateStart.Index);
 
-            if (candidateConfidence == 0)
+            if (candidateConfidence == 0 || candidate is null)
             {
                 continue;
             }
 
             matchCount++;
             confidence = Math.Max(confidence, candidateConfidence);
+            snippets.Add(SnippetRedactor.Redact(candidate));
         }
 
         return matchCount == 0
             ? null
-            : new PiiFinding(Category, Name, matchCount, confidence);
+            : new PiiFinding(Category, Name, matchCount, confidence, snippets);
     }
 
-    /// <summary>How sure we are that an account number starts here — zero when one does not.</summary>
-    private static double ScoreCandidateAt(string text, int startIndex)
+    /// <summary>How sure we are that an account number starts here, and what it was — zero and null when one does not.</summary>
+    private static (double Confidence, string? Candidate) ScoreCandidateAt(string text, int startIndex)
     {
         string countryCode = text.Substring(startIndex, 2);
 
@@ -76,14 +78,16 @@ public sealed partial class IbanDetector : IPiiDetector
         {
             string? candidate = ReadExactly(text, startIndex, expectedLength);
 
-            return candidate is not null && HasValidChecksum(candidate) ? KnownCountryConfidence : 0;
+            return candidate is not null && HasValidChecksum(candidate)
+                ? (KnownCountryConfidence, candidate)
+                : (0, null);
         }
 
         string? unknownCountryCandidate = ReadUnspacedRun(text, startIndex);
 
         return unknownCountryCandidate is not null && HasValidChecksum(unknownCountryCandidate)
-            ? UnknownCountryConfidence
-            : 0;
+            ? (UnknownCountryConfidence, unknownCountryCandidate)
+            : (0, null);
     }
 
     /// <summary>

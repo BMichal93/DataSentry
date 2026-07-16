@@ -48,6 +48,7 @@ public sealed partial class PhoneNumberDetector : IPiiDetector
     {
         int matchCount = 0;
         double confidence = 0;
+        var snippets = new List<string>();
 
         foreach (Match candidate in PhoneShapedRun().Matches(text))
         {
@@ -62,11 +63,12 @@ public sealed partial class PhoneNumberDetector : IPiiDetector
 
             matchCount++;
             confidence = Math.Max(confidence, candidateConfidence);
+            snippets.Add(SnippetRedactor.Redact(candidate.Value));
         }
 
         return matchCount == 0
             ? null
-            : new PiiFinding(Category, Name, matchCount, confidence);
+            : new PiiFinding(Category, Name, matchCount, confidence, snippets);
     }
 
     /// <summary>

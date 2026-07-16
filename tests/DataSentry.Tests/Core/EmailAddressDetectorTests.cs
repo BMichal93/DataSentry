@@ -49,7 +49,7 @@ public class EmailAddressDetectorTests
     }
 
     [Test]
-    public void Detect_SeveralAddresses_ReportsTheCountAndNothingElse()
+    public void Detect_SeveralAddresses_ReportsTheCountAndOnlyRedactedSnippets()
     {
         PiiFinding? finding = _detector.Detect(
             """
@@ -59,7 +59,15 @@ public class EmailAddressDetectorTests
             Dupont,dupont@acme.fr
             """);
 
-        Assert.That(finding?.MatchCount, Is.EqualTo(3));
+        Assert.Multiple(() =>
+        {
+            Assert.That(finding?.MatchCount, Is.EqualTo(3));
+            Assert.That(finding?.RedactedSnippets, Has.Count.EqualTo(3));
+            Assert.That(
+                finding?.RedactedSnippets,
+                Has.None.Contains("kowalska").IgnoreCase,
+                "a redacted snippet must never contain the address it stands for");
+        });
     }
 
     [Test]

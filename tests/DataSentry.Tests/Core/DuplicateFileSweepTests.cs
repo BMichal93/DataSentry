@@ -166,14 +166,14 @@ public class DuplicateFileSweepTests
                     sizeBytes: 4_096,
                     createdUtc: Now.AddYears(-3),
                     recommendation: Recommendation.Review,
-                    findings: [new PiiFinding(PiiCategory.SpecialCategory, "special category term", 4, 0.9)]),
+                    findings: [new PiiFinding(PiiCategory.SpecialCategory, "special category term", 4, 0.9, [])]),
                 FileOf(
                     "C:/work/backup/medical-notes.xlsx",
                     sizeBytes: 4_096,
                     createdUtc: Now.AddDays(-2),
                     recommendation: Recommendation.Review,
                     reason: "Special category personal data — needs a human decision (4 special category terms)",
-                    findings: [new PiiFinding(PiiCategory.SpecialCategory, "special category term", 4, 0.9)])
+                    findings: [new PiiFinding(PiiCategory.SpecialCategory, "special category term", 4, 0.9, [])])
             ],
             contentHashByPath: AllTheSame("C:/work/medical-notes.xlsx", "C:/work/backup/medical-notes.xlsx"));
 
@@ -205,7 +205,7 @@ public class DuplicateFileSweepTests
                     createdUtc: Now.AddDays(-2),
                     recommendation: Recommendation.Retain,
                     reason: "In use, and it holds personal data (12 email addresses)",
-                    findings: [new PiiFinding(PiiCategory.Contact, "email address", 12, 0.9)])
+                    findings: [new PiiFinding(PiiCategory.Contact, "email address", 12, 0.9, [])])
             ],
             contentHashByPath: AllTheSame("C:/work/contacts.csv", "C:/work/backup/contacts.csv"));
 

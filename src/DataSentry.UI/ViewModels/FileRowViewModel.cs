@@ -42,6 +42,11 @@ public sealed class FileRowViewModel : ObservableObject
         WhyItMatters = DescribeDanger(result.Findings);
         RetentionAlert = DescribeRetentionDeadline(result.RetentionDeadline);
 
+        // Empty for a report reopened from history: the snippets behind it lived only as long as the
+        // process that scanned it did, and a restarted app has nothing left to show — silently, rather
+        // than with a message that would draw attention to data that is no longer even in memory.
+        Snippets = DescribeSnippets(result.Findings);
+
         _isRecycled = result.RecycledUtc is not null;
 
         // Every file can be opened; only a condemned one can be deleted. The gate is the domain's, not
@@ -86,6 +91,15 @@ public sealed class FileRowViewModel : ObservableObject
     public string WhyItMatters { get; }
 
     public bool HasPii => PiiSummary.Length > 0;
+
+    /// <summary>
+    /// One line per detector that found something in this file — "IBAN: 48*********12, 61**********74"
+    /// — for the scan that is still running in this process. Empty for a report reopened from an
+    /// earlier session: see the constructor for why that is the correct answer, not a bug.
+    /// </summary>
+    public IReadOnlyList<string> Snippets { get; }
+
+    public bool HasSnippets => Snippets.Count > 0;
 
     /// <summary>
     /// Why the retention clock puts this file on the user's desk, in a sentence. Empty for the
@@ -189,6 +203,16 @@ public sealed class FileRowViewModel : ObservableObject
             "Terms associated with personal data. Worth a look, though the match is a weak signal on its own.",
         _ => string.Empty
     };
+
+    /// <summary>
+    /// One line per detector, worst category first — the same order <see cref="DescribeDanger"/> reads
+    /// in — skipping any finding whose snippets did not survive the trip back from the store.
+    /// </summary>
+    private static IReadOnlyList<string> DescribeSnippets(IReadOnlyList<PiiFinding> findings) =>
+        [.. findings
+            .Where(finding => finding.RedactedSnippets.Count > 0)
+            .OrderBy(finding => finding.Category)
+            .Select(finding => $"{finding.DetectorName}: {string.Join(", ", finding.RedactedSnippets)}")];
 
     private static string DescribeRetentionDeadline(RetentionDeadline deadline) => deadline switch
     {

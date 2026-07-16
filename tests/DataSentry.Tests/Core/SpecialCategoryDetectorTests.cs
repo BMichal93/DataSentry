@@ -59,7 +59,7 @@ public class SpecialCategoryDetectorTests
     }
 
     [Test]
-    public void Detect_TheSameTermSeveralTimes_ReportsTheCountAndNothingElse()
+    public void Detect_TheSameTermSeveralTimes_ReportsTheCountAndOnlyRedactedSnippets()
     {
         PiiFinding? finding = _detector.Detect(
             """
@@ -68,6 +68,22 @@ public class SpecialCategoryDetectorTests
             Nowak,diagnosis withheld
             """);
 
-        Assert.That(finding?.MatchCount, Is.EqualTo(3), "the count is how often, never what");
+        Assert.Multiple(() =>
+        {
+            Assert.That(finding?.MatchCount, Is.EqualTo(3), "the count is how often, never what");
+            Assert.That(finding?.RedactedSnippets, Has.Count.EqualTo(3));
+            Assert.That(
+                finding?.RedactedSnippets,
+                Has.None.Contains("diagnosis").IgnoreCase,
+                "a redacted snippet must never contain the term it stands for");
+        });
+    }
+
+    [Test]
+    public void Detect_Term_IsRedactedToItsFirstAndLastTwoCharacters()
+    {
+        PiiFinding? finding = _detector.Detect("Diagnosis withheld pending review.");
+
+        Assert.That(finding?.RedactedSnippets, Is.EqualTo(new[] { "Di*****is" }));
     }
 }

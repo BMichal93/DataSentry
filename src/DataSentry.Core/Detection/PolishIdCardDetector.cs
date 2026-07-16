@@ -36,18 +36,22 @@ public sealed partial class PolishIdCardDetector : IPiiDetector
     public PiiFinding? Detect(string text)
     {
         int matchCount = 0;
+        var snippets = new List<string>();
 
         foreach (Match candidate in ThreeLettersSixDigits().Matches(text))
         {
-            if (HasValidChecksum(candidate.Value.Replace(" ", "")))
+            if (!HasValidChecksum(candidate.Value.Replace(" ", "")))
             {
-                matchCount++;
+                continue;
             }
+
+            matchCount++;
+            snippets.Add(SnippetRedactor.Redact(candidate.Value));
         }
 
         return matchCount == 0
             ? null
-            : new PiiFinding(Category, Name, matchCount, ChecksumConfidence);
+            : new PiiFinding(Category, Name, matchCount, ChecksumConfidence, snippets);
     }
 
     private static bool HasValidChecksum(string documentNumber)

@@ -3,6 +3,7 @@ using DataSentry.Core.Detection;
 using DataSentry.Core.Scanning;
 using DataSentry.UI.Dialogs;
 using DataSentry.UI.FileActions;
+using DataSentry.UI.Reporting;
 using DataSentry.UI.Scheduling;
 using DataSentry.UI.ViewModels;
 using DataSentry.UI.Views;
@@ -80,6 +81,11 @@ public static class ServiceCollectionExtensions
         // shell, and both stop here, so that no view model ever has one.
         services.AddSingleton<IFileRecycler, RecycleBinFileRecycler>();
         services.AddSingleton<IFileOpener, ShellFileOpener>();
+
+        // The other seam to a Windows dialog, and the export it feeds: a report the user asked for,
+        // written to a file they chose, never anywhere the user did not point at.
+        services.AddSingleton<ISaveFilePicker, WindowsSaveFilePicker>();
+        services.AddSingleton<ScanReportExporter>();
 
         services.AddSingleton<ScheduleViewModel>();
         services.AddSingleton<ExclusionListViewModel>();
