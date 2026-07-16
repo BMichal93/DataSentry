@@ -83,6 +83,7 @@ public class MainViewModelTests
             new DelayedScanStart(new FixedTimeProvider(Now)),
             BuildResults(store),
             new ScheduleViewModel(new FakeScanScheduler()),
+            new ExclusionListViewModel([], new FakeFolderPicker(null)),
             new FakeFolderPicker(null),
             new FixedTimeProvider(Now));
 

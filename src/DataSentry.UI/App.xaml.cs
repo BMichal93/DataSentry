@@ -77,7 +77,11 @@ public partial class App : Application
     {
         try
         {
-            await services.GetRequiredService<ScanEngine>().ScanAsync(new ScanScope(folderPath));
+            // There is no window here to hold an edited exclusion list, so a scheduled scan always
+            // skips exactly the machine defaults — the same starting point the Search tab offers.
+            IReadOnlyList<string> excludedFolders = services.GetRequiredService<IReadOnlyList<string>>();
+
+            await services.GetRequiredService<ScanEngine>().ScanAsync(new ScanScope(folderPath, excludedFolders));
 
             return 0;
         }

@@ -46,6 +46,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFileSource, FileSystemFileSource>();
         services.AddSingleton<IFileContentReader, FileContentReader>();
 
+        // The exclusion list starts here and nowhere else: this is the one place allowed to know that
+        // "the machine defaults" means Windows and Program Files. Everything downstream — the UI's
+        // editable list, the headless scheduled scan — is handed the resulting paths and never learns
+        // where they came from.
+        services.AddSingleton<IReadOnlyList<string>>(_ => DefaultExclusions.ForThisMachine());
+
         // Shared by every extractor that reads words off pixels; created once because a Tesseract
         // engine is expensive, disposed by the container because it owns native memory.
         services.AddSingleton<OcrEngine>();
