@@ -49,7 +49,7 @@ public class SqliteScanResultStoreTests
         FileScanResult staleInvoice = CreateResult(
             @"C:\shared\invoices\2019.xlsx",
             Recommendation.Review,
-            new PiiFinding(PiiCategory.Financial, "Iban", MatchCount: 3, Confidence: 0.95));
+            new PiiFinding(PiiCategory.Financial, "Iban", MatchCount: 3, Confidence: 0.95, RedactedSnippets: ["48*********12"]));
 
         await _store.SaveReportAsync(report, ToAsyncEnumerable(staleInvoice, CreateResult(@"C:\temp\a.tmp", Recommendation.Delete)));
 
@@ -62,7 +62,72 @@ public class SqliteScanResultStoreTests
             Assert.That(storedInvoice.Recommendation, Is.EqualTo(Recommendation.Review));
             Assert.That(storedInvoice.Findings.Single().Category, Is.EqualTo(PiiCategory.Financial));
             Assert.That(storedInvoice.Findings.Single().MatchCount, Is.EqualTo(3));
+
+            // The snippet is not a database column — it survives because this store keeps it in memory
+            // for exactly this session, and stitches it back onto the result it belongs to.
+            Assert.That(storedInvoice.Findings.Single().RedactedSnippets, Is.EqualTo(new[] { "48*********12" }));
         });
+    }
+
+    [Test]
+    public async Task GetResultsPage_AResultWithSnippets_CarriesThemToo()
+    {
+        ScanReport report = CreateReport(Guid.NewGuid(), completedUtc: DateTimeOffset.UtcNow);
+        FileScanResult invoice = CreateResult(
+            @"C:\shared\invoices\2019.xlsx",
+            Recommendation.Review,
+            new PiiFinding(PiiCategory.Financial, "Iban", MatchCount: 1, Confidence: 0.95, RedactedSnippets: ["48*********12"]));
+
+        await _store.SaveReportAsync(report, ToAsyncEnumerable(invoice));
+
+        IReadOnlyList<FileScanResult> page = await _store.GetResultsPageAsync(report.Id, Recommendation.Review, skip: 0, take: 10);
+
+        Assert.That(page.Single().Findings.Single().RedactedSnippets, Is.EqualTo(new[] { "48*********12" }));
+    }
+
+    [Test]
+    public async Task DeleteReport_AReportWithSnippets_ForgetsThemToo()
+    {
+        ScanReport report = CreateReport(Guid.NewGuid(), completedUtc: DateTimeOffset.UtcNow);
+        FileScanResult invoice = CreateResult(
+            @"C:\shared\invoices\2019.xlsx",
+            Recommendation.Review,
+            new PiiFinding(PiiCategory.Financial, "Iban", MatchCount: 1, Confidence: 0.95, RedactedSnippets: ["48*********12"]));
+
+        await _store.SaveReportAsync(report, ToAsyncEnumerable(invoice));
+        await _store.DeleteReportAsync(report.Id);
+
+        // A second scan is free to reuse the report id's memory the moment the first is gone — nothing
+        // from the deleted report's snippet cache may leak into it.
+        await _store.SaveReportAsync(report, ToAsyncEnumerable(CreateResult(@"C:\shared\invoices\2019.xlsx", Recommendation.Retain)));
+
+        FileScanResult reused = (await _store.GetResultsAsync(report.Id).ToListAsync()).Single();
+
+        Assert.That(reused.Findings, Is.Empty);
+    }
+
+    [Test]
+    public async Task PurgeReportsOlderThan_AReportWithSnippets_ForgetsThemToo()
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        ScanReport expiredReport = CreateReport(Guid.NewGuid(), completedUtc: now.AddDays(-31));
+
+        await _store.SaveReportAsync(expiredReport, ToAsyncEnumerable(
+            CreateResult(
+                @"C:\old.xlsx",
+                Recommendation.Review,
+                new PiiFinding(PiiCategory.Financial, "Iban", MatchCount: 1, Confidence: 0.95, RedactedSnippets: ["48*********12"]))));
+
+        await _store.PurgeReportsOlderThanAsync(now.AddDays(-30));
+
+        // The purge already proved the report itself is gone (see the other purge test); this proves
+        // its snippet cache entry went with it rather than sitting there for a report id nothing can
+        // reach any more.
+        await _store.SaveReportAsync(expiredReport, ToAsyncEnumerable(CreateResult(@"C:\old.xlsx", Recommendation.Retain)));
+
+        FileScanResult reused = (await _store.GetResultsAsync(expiredReport.Id).ToListAsync()).Single();
+
+        Assert.That(reused.Findings, Is.Empty);
     }
 
     [Test]

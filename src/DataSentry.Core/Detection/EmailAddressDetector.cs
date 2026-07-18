@@ -52,6 +52,7 @@ public sealed partial class EmailAddressDetector : IPiiDetector
     {
         int matchCount = 0;
         double confidence = 0;
+        var snippets = new List<string>();
 
         foreach (Match candidate in EmailShapedText().Matches(text))
         {
@@ -64,11 +65,12 @@ public sealed partial class EmailAddressDetector : IPiiDetector
 
             matchCount++;
             confidence = Math.Max(confidence, candidateConfidence);
+            snippets.Add(SnippetRedactor.Redact(candidate.Value));
         }
 
         return matchCount == 0
             ? null
-            : new PiiFinding(Category, Name, matchCount, confidence);
+            : new PiiFinding(Category, Name, matchCount, confidence, snippets);
     }
 
     /// <summary>How sure we are that somebody could be written to here — zero when nobody could.</summary>

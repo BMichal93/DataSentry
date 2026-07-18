@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -13,6 +14,17 @@ using Microsoft.EntityFrameworkCore;
 namespace DataSentry.Data.Persistence.Stores;
 
 /// <summary>Stores scan reports in the local SQLite file.</summary>
+/// <remarks>
+/// <b>Redacted PII snippets never reach this file's SQLite tables — but they still have to reach the
+/// screen for the report that was just scanned.</b> Every result this store hands back, including the
+/// one shown a second after the scan that produced it, is read back off disk through
+/// <see cref="ScanResultMapper.ToDomain(FileScanResultEntity)"/>, which cannot return what was never
+/// written there. So the findings a scan produced — snippets and all — are kept in
+/// <see cref="_findingsWithSnippetsByReport"/>, an in-memory dictionary that exists for exactly as long
+/// as this process does, and are stitched back onto the results this store reads before handing them
+/// to a caller. Nothing in it is ever written to disk; a report purged or deleted takes its entry with
+/// it, and restarting the app empties it entirely. That is what "session-only" means in practice.
+/// </remarks>
 public sealed class SqliteScanResultStore : IScanResultStore
 {
     /// <summary>
@@ -22,6 +34,9 @@ public sealed class SqliteScanResultStore : IScanResultStore
     private const int InsertBatchSize = 500;
 
     private readonly IDbContextFactory<DataSentryDbContext> _contextFactory;
+
+    /// <summary>Report id → file path → that file's findings, snippets included. See the type's remarks.</summary>
+    private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, IReadOnlyList<PiiFinding>>> _findingsWithSnippetsByReport = new();
 
     public SqliteScanResultStore(IDbContextFactory<DataSentryDbContext> contextFactory)
     {
@@ -42,8 +57,18 @@ public sealed class SqliteScanResultStore : IScanResultStore
 
         var batch = new List<FileScanResultEntity>(InsertBatchSize);
 
+        // Read once, kept in memory only, and never handed to the entity below it: this is the one
+        // moment a finding's snippets exist anywhere but the detail pane that is about to ask for them.
+        ConcurrentDictionary<string, IReadOnlyList<PiiFinding>> findingsWithSnippets =
+            _findingsWithSnippetsByReport.GetOrAdd(report.Id, _ => new(StringComparer.OrdinalIgnoreCase));
+
         await foreach (FileScanResult result in results.WithCancellation(cancellationToken))
         {
+            if (result.Findings.Count > 0)
+            {
+                findingsWithSnippets[result.FilePath] = result.Findings;
+            }
+
             batch.Add(ScanResultMapper.ToEntity(result, report.Id));
 
             if (batch.Count < InsertBatchSize)
@@ -118,7 +143,7 @@ public sealed class SqliteScanResultStore : IScanResultStore
 
         await foreach (FileScanResultEntity result in results.WithCancellation(cancellationToken))
         {
-            yield return ScanResultMapper.ToDomain(result);
+            yield return WithSnippetsIfAvailable(ScanResultMapper.ToDomain(result), reportId);
         }
     }
 
@@ -145,8 +170,21 @@ public sealed class SqliteScanResultStore : IScanResultStore
             .Take(take)
             .ToListAsync(cancellationToken);
 
-        return page.Select(ScanResultMapper.ToDomain).ToList();
+        return page
+            .Select(result => WithSnippetsIfAvailable(ScanResultMapper.ToDomain(result), reportId))
+            .ToList();
     }
+
+    /// <summary>
+    /// Restores a result's snippets from the in-memory cache this store filled while it was saving the
+    /// scan that produced them. Unchanged when there is nothing cached — an older report from before
+    /// this process started, or a file with no findings to redact in the first place.
+    /// </summary>
+    private FileScanResult WithSnippetsIfAvailable(FileScanResult result, Guid reportId) =>
+        _findingsWithSnippetsByReport.TryGetValue(reportId, out var findingsByPath)
+        && findingsByPath.TryGetValue(result.FilePath, out IReadOnlyList<PiiFinding>? findingsWithSnippets)
+            ? result with { Findings = findingsWithSnippets }
+            : result;
 
     /// <remarks>
     /// The grouping happens in SQLite, not in the caller, and that is the point of it: the sizes are
@@ -286,6 +324,8 @@ public sealed class SqliteScanResultStore : IScanResultStore
         await context.Reports
             .Where(report => report.Id == reportId)
             .ExecuteDeleteAsync(cancellationToken);
+
+        _findingsWithSnippetsByReport.TryRemove(reportId, out _);
     }
 
     public async Task<int> PurgeReportsOlderThanAsync(
@@ -294,9 +334,23 @@ public sealed class SqliteScanResultStore : IScanResultStore
     {
         await using DataSentryDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        return await context.Reports
+        // Read the ids before they go, so the snippet cache can be emptied of exactly the reports that
+        // were just purged — the same reason DeleteReportAsync above takes one.
+        List<Guid> purgedReportIds = await context.Reports
             .Where(report => report.CompletedUtc < cutoffUtc)
+            .Select(report => report.Id)
+            .ToListAsync(cancellationToken);
+
+        int purgedCount = await context.Reports
+            .Where(report => purgedReportIds.Contains(report.Id))
             .ExecuteDeleteAsync(cancellationToken);
+
+        foreach (Guid purgedReportId in purgedReportIds)
+        {
+            _findingsWithSnippetsByReport.TryRemove(purgedReportId, out _);
+        }
+
+        return purgedCount;
     }
 
     private static async Task FlushAsync(

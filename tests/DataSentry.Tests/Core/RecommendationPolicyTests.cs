@@ -264,5 +264,5 @@ public class RecommendationPolicyTests
             LastAccessedUtc: lastTouchedUtc);
 
     private static PiiFinding Finding(PiiCategory category, int matchCount, string detectorName = "IBAN") =>
-        new(category, detectorName, matchCount, Confidence: 0.95);
+        new(category, detectorName, matchCount, Confidence: 0.95, RedactedSnippets: []);
 }

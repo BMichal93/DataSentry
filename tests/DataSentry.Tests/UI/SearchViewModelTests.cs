@@ -6,6 +6,7 @@ using DataSentry.Core.Detection;
 using DataSentry.Core.Models;
 using DataSentry.Core.Scanning;
 using DataSentry.Tests.Fakes;
+using DataSentry.UI.Reporting;
 using DataSentry.UI.ViewModels;
 using Microsoft.Extensions.Time.Testing;
 
@@ -473,6 +474,8 @@ public class SearchViewModelTests
             new FakeFileRecycler(),
             new FakeFileOpener(),
             new FakeConfirmationPrompt(answer: false),
+            new FakeSaveFilePicker(),
+            new ScanReportExporter(),
             timeProvider);
 
         return new SearchViewModel(

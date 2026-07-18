@@ -67,7 +67,7 @@ public class PhoneNumberDetectorTests
     }
 
     [Test]
-    public void Detect_SeveralPhoneNumbers_ReportsTheCountAndNothingElse()
+    public void Detect_SeveralPhoneNumbers_ReportsTheCountAndOnlyRedactedSnippets()
     {
         PiiFinding? finding = _detector.Detect(
             """
@@ -77,7 +77,23 @@ public class PhoneNumberDetectorTests
             Dupont,+33 1 42 68 53 00
             """);
 
-        Assert.That(finding?.MatchCount, Is.EqualTo(3));
+        Assert.Multiple(() =>
+        {
+            Assert.That(finding?.MatchCount, Is.EqualTo(3));
+            Assert.That(finding?.RedactedSnippets, Has.Count.EqualTo(3));
+            Assert.That(
+                finding?.RedactedSnippets,
+                Has.None.Contains("601234567"),
+                "a redacted snippet must never contain the phone number it stands for");
+        });
+    }
+
+    [Test]
+    public void Detect_PhoneNumber_IsRedactedToItsFirstAndLastTwoCharacters()
+    {
+        PiiFinding? finding = _detector.Detect("Call +48 601 234 567 before noon.");
+
+        Assert.That(finding?.RedactedSnippets, Is.EqualTo(new[] { "+4***********67" }));
     }
 
     [Test]

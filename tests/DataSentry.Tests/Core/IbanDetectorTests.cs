@@ -68,7 +68,7 @@ public class IbanDetectorTests
     }
 
     [Test]
-    public void Detect_SeveralAccountNumbers_ReportsTheCountAndNothingElse()
+    public void Detect_SeveralAccountNumbers_ReportsTheCountAndOnlyRedactedSnippets()
     {
         PiiFinding? finding = _detector.Detect(
             """
@@ -78,7 +78,23 @@ public class IbanDetectorTests
             Dupont,FR14 2004 1010 0505 0001 3M02 606
             """);
 
-        Assert.That(finding?.MatchCount, Is.EqualTo(3));
+        Assert.Multiple(() =>
+        {
+            Assert.That(finding?.MatchCount, Is.EqualTo(3));
+            Assert.That(finding?.RedactedSnippets, Has.Count.EqualTo(3));
+            Assert.That(
+                finding?.RedactedSnippets,
+                Has.None.Contains("109010140000071219812874"),
+                "a redacted snippet must never contain the account number it stands for");
+        });
+    }
+
+    [Test]
+    public void Detect_AccountNumber_IsRedactedToItsFirstAndLastTwoCharacters()
+    {
+        PiiFinding? finding = _detector.Detect("Please remit to PL61 1090 1014 0000 0712 1981 2874 by Friday.");
+
+        Assert.That(finding?.RedactedSnippets, Is.EqualTo(new[] { "PL************************74" }));
     }
 
     [Test]

@@ -42,7 +42,7 @@ public class PolishIdCardDetectorTests
     }
 
     [Test]
-    public void Detect_SeveralDocumentNumbers_ReportsTheCountAndNothingElse()
+    public void Detect_SeveralDocumentNumbers_ReportsTheCountAndOnlyRedactedSnippets()
     {
         PiiFinding? finding = _detector.Detect(
             """
@@ -51,7 +51,23 @@ public class PolishIdCardDetectorTests
             Nowak,XYZ712345
             """);
 
-        Assert.That(finding?.MatchCount, Is.EqualTo(2));
+        Assert.Multiple(() =>
+        {
+            Assert.That(finding?.MatchCount, Is.EqualTo(2));
+            Assert.That(finding?.RedactedSnippets, Has.Count.EqualTo(2));
+            Assert.That(
+                finding?.RedactedSnippets,
+                Has.None.Contains("598120"),
+                "a redacted snippet must never contain the document number it stands for");
+        });
+    }
+
+    [Test]
+    public void Detect_DocumentNumber_IsRedactedToItsFirstAndLastTwoCharacters()
+    {
+        PiiFinding? finding = _detector.Detect("Reference ABA598120 in the ledger.");
+
+        Assert.That(finding?.RedactedSnippets, Is.EqualTo(new[] { "AB*****20" }));
     }
 
     [Test]

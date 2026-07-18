@@ -95,8 +95,13 @@ internal static class ScanResultMapper
         Reason = error.Reason
     };
 
+    /// <summary>
+    /// A finding with no snippets: the entity never had any to give back. The snippets a scan produced
+    /// live only in <see cref="Stores.SqliteScanResultStore"/>'s in-memory cache, for as long as this
+    /// process runs — never here, and never on disk.
+    /// </summary>
     private static PiiFinding ToDomain(PiiFindingEntity entity) =>
-        new(entity.Category, entity.DetectorName, entity.MatchCount, entity.Confidence);
+        new(entity.Category, entity.DetectorName, entity.MatchCount, entity.Confidence, []);
 
     private static ScanError ToDomain(ScanErrorEntity entity) =>
         new(entity.Path, entity.Reason);

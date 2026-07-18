@@ -41,12 +41,14 @@ public sealed class SpecialCategoryDetector : IPiiDetector
     public PiiFinding? Detect(string text)
     {
         var distinctTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var snippets = new List<string>();
         int matchCount = 0;
 
         foreach (Match match in Terms.Matches(text))
         {
             matchCount++;
             distinctTerms.Add(match.Value);
+            snippets.Add(SnippetRedactor.Redact(match.Value));
         }
 
         if (matchCount == 0)
@@ -58,7 +60,7 @@ public sealed class SpecialCategoryDetector : IPiiDetector
             ? CorroboratedConfidence
             : SingleTermConfidence;
 
-        return new PiiFinding(Category, Name, matchCount, confidence);
+        return new PiiFinding(Category, Name, matchCount, confidence, snippets);
     }
 
     /// <summary>

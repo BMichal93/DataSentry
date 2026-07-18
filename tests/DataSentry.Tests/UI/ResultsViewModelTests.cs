@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using DataSentry.Core.Models;
 using DataSentry.Tests.Fakes;
+using DataSentry.UI.Reporting;
 using DataSentry.UI.ViewModels;
 
 namespace DataSentry.Tests.UI;
@@ -114,7 +116,7 @@ public class ResultsViewModelTests
     {
         var store = new InMemoryScanResultStore();
 
-        var finding = new PiiFinding(PiiCategory.Financial, "IBAN", MatchCount: 3, Confidence: 0.95);
+        var finding = new PiiFinding(PiiCategory.Financial, "IBAN", MatchCount: 3, Confidence: 0.95, RedactedSnippets: ["48*********12"]);
         FileScanResult withPii = ResultAt("C:/work/suppliers.csv", Recommendation.Review) with
         {
             Findings = [finding]
@@ -134,6 +136,39 @@ public class ResultsViewModelTests
             // The row explains why the finding is dangerous — the kind of data and the exposure — but
             // the matched values themselves have no way onto the screen: the model never carried them.
             Assert.That(row.WhyItMatters, Does.StartWith("Bank account or card numbers."));
+
+            // The redacted shape is shown, labelled by detector — but only ever the shape.
+            Assert.That(row.Snippets, Is.EqualTo(new[] { "IBAN: 48*********12" }));
+        });
+    }
+
+    [Test]
+    public async Task Show_AReportReopenedFromAnEarlierSession_HasNoSnippetsToShow()
+    {
+        // The store fake keeps whatever it was handed, but the real SqliteScanResultStore does not: a
+        // finding read back after the process that scanned it has exited carries no snippets at all.
+        // This is that case, simulated directly, because it is the one the screen must handle quietly.
+        var store = new InMemoryScanResultStore();
+
+        FileScanResult withPiiButNoSnippets = ResultAt("C:/work/suppliers.csv", Recommendation.Review) with
+        {
+            Findings = [new PiiFinding(PiiCategory.Financial, "IBAN", MatchCount: 3, Confidence: 0.95, RedactedSnippets: [])]
+        };
+
+        Guid reportId = SeedReport(store, [withPiiButNoSnippets]);
+
+        ResultsViewModel results = Build(store);
+        await results.LoadAsync(reportId, new ScanSummary(1, 0, 0, 0, 1));
+
+        FileRowViewModel row = results.Rows.Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(row.HasSnippets, Is.False);
+            Assert.That(row.Snippets, Is.Empty);
+
+            // The type-and-count summary survives the round trip even when the snippets do not.
+            Assert.That(row.PiiSummary, Is.EqualTo("3 IBANs"));
         });
     }
 
@@ -146,8 +181,8 @@ public class ResultsViewModelTests
         {
             Findings =
             [
-                new PiiFinding(PiiCategory.Contact, "email address", MatchCount: 12, Confidence: 0.7),
-                new PiiFinding(PiiCategory.SpecialCategory, "health term", MatchCount: 4, Confidence: 0.6)
+                new PiiFinding(PiiCategory.Contact, "email address", MatchCount: 12, Confidence: 0.7, RedactedSnippets: []),
+                new PiiFinding(PiiCategory.SpecialCategory, "health term", MatchCount: 4, Confidence: 0.6, RedactedSnippets: [])
             ]
         };
 
@@ -394,16 +429,82 @@ public class ResultsViewModelTests
         Assert.That(opener.Opened, Is.EqualTo(new[] { "C:/hr/medical-leave.xlsx" }));
     }
 
+    [Test]
+    public async Task ExportAsync_AReportWithFindings_WritesTypesCountsAndRedactedSnippetsOnly()
+    {
+        var store = new InMemoryScanResultStore();
+
+        FileScanResult withPii = ResultAt("C:/work/suppliers.csv", Recommendation.Review) with
+        {
+            Findings = [new PiiFinding(PiiCategory.Financial, "IBAN", MatchCount: 1, Confidence: 0.95, RedactedSnippets: ["48*********12"])]
+        };
+
+        Guid reportId = SeedReport(store, [withPii]);
+
+        string destinationPath = Path.Combine(Path.GetTempPath(), $"datasentry-export-{Guid.NewGuid():N}.csv");
+
+        try
+        {
+            ResultsViewModel results = Build(store, saveFilePicker: new FakeSaveFilePicker(destinationPath));
+            await results.LoadAsync(reportId, new ScanSummary(1, 0, 0, 0, 1));
+
+            await results.ExportAsync();
+
+            string exported = await File.ReadAllTextAsync(destinationPath);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(results.ExportOutcome, Is.EqualTo("Report exported."));
+                Assert.That(exported, Does.Contain("C:/work/suppliers.csv"));
+                Assert.That(exported, Does.Contain("1 IBAN"));
+                Assert.That(exported, Does.Contain("48*********12"));
+            });
+        }
+        finally
+        {
+            File.Delete(destinationPath);
+        }
+    }
+
+    [Test]
+    public async Task ExportAsync_TheUserClosesTheDialogWithoutChoosingASpot_WritesNothing()
+    {
+        var store = new InMemoryScanResultStore();
+        Guid reportId = SeedReport(store, [ResultAt("C:/work/report.docx", Recommendation.Retain)]);
+
+        ResultsViewModel results = Build(store, saveFilePicker: new FakeSaveFilePicker(destinationPath: null));
+        await results.LoadAsync(reportId, new ScanSummary(1, 0, 0, 0, 0));
+
+        await results.ExportAsync();
+
+        Assert.That(results.HasExportOutcome, Is.False, "closing the dialog is not a failure to report on");
+    }
+
+    [Test]
+    public async Task CanExport_AReportWithNoFilesScanned_IsFalse()
+    {
+        var store = new InMemoryScanResultStore();
+        Guid reportId = SeedReport(store, []);
+
+        ResultsViewModel results = Build(store);
+        await results.LoadAsync(reportId, new ScanSummary(0, 0, 0, 0, 0));
+
+        Assert.That(results.CanExport, Is.False, "there is nothing behind the button to export");
+    }
+
     private static ResultsViewModel Build(
         InMemoryScanResultStore store,
         FakeFileRecycler? recycler = null,
         FakeConfirmationPrompt? confirmation = null,
-        FakeFileOpener? fileOpener = null) =>
+        FakeFileOpener? fileOpener = null,
+        FakeSaveFilePicker? saveFilePicker = null) =>
         new(
             store,
             recycler ?? new FakeFileRecycler(),
             fileOpener ?? new FakeFileOpener(),
             confirmation ?? new FakeConfirmationPrompt(answer: false),
+            saveFilePicker ?? new FakeSaveFilePicker(),
+            new ScanReportExporter(),
             new FixedTimeProvider(Now));
 
     private static IReadOnlyList<FileScanResult> DeleteResults(int count) =>
