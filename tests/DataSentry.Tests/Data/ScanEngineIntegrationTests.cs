@@ -279,7 +279,7 @@ public class ScanEngineIntegrationTests
             cancelAfterFiles: 5);
 
         Assert.That(
-            async () => await BuildEngine(contentReader).ScanAsync(new ScanScope(_scanRoot), progress: null, cancellation.Token),
+            async () => await BuildEngine(contentReader).ScanAsync(new ScanScope(_scanRoot), progress: null, cancellationToken: cancellation.Token),
             Throws.InstanceOf<OperationCanceledException>());
 
         IReadOnlyList<ScanReport> reports = await _store.ListReportsAsync();

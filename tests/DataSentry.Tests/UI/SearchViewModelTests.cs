@@ -443,6 +443,34 @@ public class SearchViewModelTests
         Assert.That(viewModel.IsSchedulePanelOpen, Is.False);
     }
 
+    [Test]
+    public void PauseResumeButton_BeforeAnyScan_ReadsPauseAndTheScanIsNotPaused()
+    {
+        SearchViewModel viewModel = BuildViewModel([]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsPaused, Is.False);
+            Assert.That(viewModel.PauseResumeButtonText, Is.EqualTo("Pause"));
+        });
+    }
+
+    [Test]
+    public void TogglePause_WithNoScanRunning_DoesNothing()
+    {
+        // The pause controls a scan that is in flight; with none, pressing the button is meaningless and
+        // must not leave the tab believing it has paused something that was never running.
+        SearchViewModel viewModel = BuildViewModel([]);
+
+        viewModel.TogglePause();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsPaused, Is.False);
+            Assert.That(viewModel.PauseResumeButtonText, Is.EqualTo("Pause"));
+        });
+    }
+
     private static SearchViewModel BuildViewModel(
         IReadOnlyList<FileMetadata> files,
         IReadOnlyDictionary<string, string?>? textByPath = null,

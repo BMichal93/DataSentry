@@ -35,6 +35,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0"
@@ -148,7 +149,17 @@
                     Style="{StaticResource PrimaryButton}"
                     Command="{Binding ScanCommand}" />
 
+            <!-- Hold the scan without ending it — its own word next to Cancel, because pausing keeps the
+                 scan's place and cancelling throws it away. Only while a scan is actually running. -->
             <Button Grid.Column="3"
+                    Content="{Binding PauseResumeButtonText}"
+                    Margin="8,0,0,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource QuietButton}"
+                    Command="{Binding PauseResumeCommand}"
+                    Visibility="{Binding IsScanning, Converter={StaticResource VisibleWhenTrue}}" />
+
+            <Button Grid.Column="4"
                     Content="Cancel"
                     Margin="8,0,0,0"
                     VerticalAlignment="Center"
@@ -158,7 +169,7 @@
 
             <!-- The way out of a pending scan. Same stop as Cancel; its own word, because nothing has
                  started yet and "cancel" would suggest something had. -->
-            <Button Grid.Column="4"
+            <Button Grid.Column="5"
                     Content="Call off"
                     Margin="8,0,0,0"
                     VerticalAlignment="Center"
@@ -167,7 +178,7 @@
                     Visibility="{Binding IsWaitingToScan, Converter={StaticResource VisibleWhenTrue}}" />
 
             <!-- The clock. Blue when a daily scan is set, grey when not — the icon is the status. -->
-            <Button Grid.Column="5"
+            <Button Grid.Column="6"
                     Content="&#xE823;"
                     Margin="8,0,0,0"
                     VerticalAlignment="Center"
@@ -187,7 +198,7 @@
             <!-- The folders this scan skips outright — Windows, Program Files, and anything the user
                  has added. Visible and editable rather than a silent default: a scan that quietly
                  steered around folders nobody saw would not be a default anyone could trust. -->
-            <Button Grid.Column="6"
+            <Button Grid.Column="7"
                     Content="&#xE71C;"
                     Margin="8,0,0,0"
                     VerticalAlignment="Center"
