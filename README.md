@@ -60,6 +60,16 @@ There is nothing to configure: the SQLite database is a file the app creates on 
 
 Scans can also run on a daily schedule via the Windows Task Scheduler (the clock icon next to the search bar); scheduled scans run headlessly and their reports appear in the Reports tab.
 
+### A single, self-contained executable
+
+To produce a build that runs on a Windows machine with no .NET installed — one file you can hand to someone and they double-click:
+
+```powershell
+dotnet publish src/DataSentry.UI -c Release -r win-x64
+```
+
+The output is `DataSentry.exe` (a self-contained, single-file `win-x64` build) alongside a `tessdata` folder holding the OCR language model, which Tesseract opens by path. The native libraries the app depends on — SQLite, Tesseract, and the PDF rasteriser — are bundled into the exe and unpacked on first run. The publish settings live in [`DataSentry.UI.csproj`](src/DataSentry.UI/DataSentry.UI.csproj) and switch on only when a runtime is named, so an ordinary `dotnet build` stays framework-dependent and quick.
+
 ## CI
 
 Every push and pull request builds the solution and runs the full NUnit test suite on `windows-latest` — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).

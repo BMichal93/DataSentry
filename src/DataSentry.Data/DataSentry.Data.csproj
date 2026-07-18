@@ -24,7 +24,9 @@
 
   <ItemGroup>
     <!-- The OCR language model rides along to the build output, where ImageOcrTextExtractor
-         expects to find it — no install step for the user, same as the SQLite database. -->
+         expects to find it — no install step for the user, same as the SQLite database. (Getting it
+         into a `dotnet publish` of the app is the UI project's job — content does not follow a project
+         reference into publish the way it follows one into a build.) -->
     <Content Include="TextExtraction\tessdata\eng.traineddata" Link="tessdata\eng.traineddata" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
