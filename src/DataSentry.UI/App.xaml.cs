@@ -6,6 +6,7 @@ using DataSentry.Core.Models;
 using DataSentry.Core.Scanning;
 using DataSentry.Data.Persistence.Context;
 using DataSentry.UI.Scheduling;
+using DataSentry.UI.Settings;
 using DataSentry.UI.ViewModels;
 using DataSentry.UI.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -77,9 +78,12 @@ public partial class App : Application
     {
         try
         {
-            // There is no window here to hold an edited exclusion list, so a scheduled scan always
-            // skips exactly the machine defaults — the same starting point the Search tab offers.
-            IReadOnlyList<string> excludedFolders = services.GetRequiredService<IReadOnlyList<string>>();
+            // No window here to edit the exclusion list, but the one the user last left on the Search tab
+            // is in settings.json — so a scheduled scan skips the same folders an interactive one would.
+            // Only a machine that has never had the list touched falls back to the defaults.
+            IReadOnlyList<string> excludedFolders =
+                services.GetRequiredService<IScanSettingsStore>().Load()?.ExcludedFolders
+                ?? services.GetRequiredService<IReadOnlyList<string>>();
 
             await services.GetRequiredService<ScanEngine>().ScanAsync(new ScanScope(folderPath, excludedFolders));
 

@@ -5,6 +5,7 @@ using DataSentry.UI.Dialogs;
 using DataSentry.UI.FileActions;
 using DataSentry.UI.Reporting;
 using DataSentry.UI.Scheduling;
+using DataSentry.UI.Settings;
 using DataSentry.UI.ViewModels;
 using DataSentry.UI.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -86,6 +87,10 @@ public static class ServiceCollectionExtensions
         // written to a file they chose, never anywhere the user did not point at.
         services.AddSingleton<ISaveFilePicker, WindowsSaveFilePicker>();
         services.AddSingleton<ScanReportExporter>();
+
+        // Where the exclusion list is remembered between runs: settings.json, next to the database in
+        // %AppData%/DataSentry. The one piece of state the user configures that outlives a session.
+        services.AddSingleton<IScanSettingsStore>(_ => new JsonScanSettingsStore());
 
         services.AddSingleton<ScheduleViewModel>();
         services.AddSingleton<ExclusionListViewModel>();
