@@ -18,6 +18,57 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <AssemblyName>DataSentry</AssemblyName>
   </PropertyGroup>
+
+  <!--
+    One-file, no-install distribution. `dotnet publish src/DataSentry.UI -c Release -r win-x64`
+    produces a single self-contained DataSentry.exe that runs on a Windows machine with no .NET
+    installed — which is the whole point: someone can download it and double-click it.
+
+    Guarded on RuntimeIdentifier so it applies only when a runtime is named (i.e. on publish with
+    -r win-x64). An ordinary `dotnet build` / `dotnet test` names no runtime, so it stays
+    framework-dependent, RID-agnostic and fast, exactly as it was.
+
+    The native libraries this app leans on — SQLite, Tesseract, pdfium — cannot live inside a managed
+    assembly, so they are bundled into the exe and self-extracted on first run. The OCR language model
+    (tessdata\eng.traineddata) is data Tesseract opens by path, so it rides along beside the exe rather
+    than inside it; AppContext.BaseDirectory finds it there whether the app was built or published.
+  -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+
+    <!-- No managed debug symbols in a downloaded build. The one thing shipped is the exe. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <!--
+    The OCR language model must sit beside the published exe. Content does not follow a project
+    reference into publish the way it follows one into a build, and the single-file inner build does not
+    pick up a Content item added for it either — so the app copies it in itself once publish is done.
+    An ordinary build already gets tessdata transitively from DataSentry.Data; this only runs on Publish.
+  -->
+  <Target Name="CopyTessdataToPublish" AfterTargets="Publish">
+    <Copy SourceFiles="..\DataSentry.Data\TextExtraction\tessdata\eng.traineddata"
+          DestinationFiles="$(PublishDir)tessdata\eng.traineddata"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <!--
+    Strip every .pdb from the published folder. Suppressing our own symbols above is not enough: the
+    SkiaSharp native package drops an 83 MB libSkiaSharp.pdb next to the exe that would near-double the
+    download for debug symbols nobody downloading a release wants. Runs only on the Publish target, so
+    an ordinary build keeps its symbols.
+  -->
+  <Target Name="RemovePublishedDebugSymbols" AfterTargets="Publish">
+    <ItemGroup>
+      <_PublishedDebugSymbols Include="$(PublishDir)**\*.pdb" />
+    </ItemGroup>
+    <Delete Files="@(_PublishedDebugSymbols)" />
+  </Target>
 
 </Project>
