@@ -247,11 +247,84 @@ public class ScanEngineTests
         Assert.Multiple(() =>
         {
             Assert.That(
-                async () => await engine.ScanAsync(new ScanScope("C:/work"), progress: null, cancellation.Token),
+                async () => await engine.ScanAsync(new ScanScope("C:/work"), progress: null, cancellationToken: cancellation.Token),
                 Throws.InstanceOf<OperationCanceledException>());
 
             Assert.That(_store.CompletedReports, Is.Empty, "a scan that was stopped halfway has no report to show");
         });
+    }
+
+    [Test]
+    public async Task ScanAsync_PausedThenResumed_HoldsWhilePausedAndFinishesEveryFileOnResume()
+    {
+        var pause = new PauseTokenSource();
+        ScanEngine engine = BuildEngine(
+            [FileAt("C:/work/a.txt"), FileAt("C:/work/b.txt"), FileAt("C:/work/c.txt")]);
+
+        // Paused before it starts, so the very first file is held at the gate.
+        pause.Pause();
+        Task<ScanReport> scanning = engine.ScanAsync(new ScanScope("C:/work"), progress: null, pause.Token);
+
+        // A bounded wait, not a bare sleep: a scan of three in-memory files finishes in microseconds
+        // when it is running, so if it is still going after this delay it is because the pause held it.
+        Task firstToFinish = await Task.WhenAny(scanning, Task.Delay(200));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(firstToFinish, Is.Not.SameAs(scanning), "a paused scan must not run to the end");
+            Assert.That(_store.CompletedReports, Is.Empty);
+        });
+
+        pause.Resume();
+        ScanReport report = await scanning;
+
+        Assert.That(
+            _store.ResultsOf(report.Id),
+            Has.Count.EqualTo(3),
+            "resume carries on from where it was held and finishes every file");
+    }
+
+    [Test]
+    public async Task ScanAsync_CancelledWhilePaused_StopsRatherThanHangingForAResumeThatNeverComes()
+    {
+        // The rule the feature rests on, at engine level: Cancel is stronger than Pause.
+        var pause = new PauseTokenSource();
+        using var cancellation = new CancellationTokenSource();
+
+        ScanEngine engine = BuildEngine(
+            [FileAt("C:/work/a.txt"), FileAt("C:/work/b.txt"), FileAt("C:/work/c.txt")]);
+
+        pause.Pause();
+        Task<ScanReport> scanning = engine.ScanAsync(
+            new ScanScope("C:/work"),
+            progress: null,
+            pause.Token,
+            cancellation.Token);
+
+        Task firstToFinish = await Task.WhenAny(scanning, Task.Delay(200));
+        Assert.That(firstToFinish, Is.Not.SameAs(scanning), "still held on the gate");
+
+        cancellation.Cancel();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(async () => await scanning, Throws.InstanceOf<OperationCanceledException>());
+            Assert.That(_store.CompletedReports, Is.Empty);
+        });
+    }
+
+    private ScanEngine BuildEngine(IReadOnlyList<FileMetadata> files)
+    {
+        var contentReader = new FakeFileContentReader();
+
+        return new ScanEngine(
+            new FakeFileSource(files),
+            contentReader,
+            _store,
+            [new JunkFileRule(), new StaleFileRule()],
+            AllDetectors,
+            new DuplicateFileSweep(_store, contentReader),
+            new FixedTimeProvider(Now));
     }
 
     private async Task<ScanReport> ScanAsync(

@@ -36,12 +36,14 @@ public sealed class SearchViewModel : ObservableObject
     private readonly TimeProvider _timeProvider;
 
     private CancellationTokenSource? _scanCancellation;
+    private PauseTokenSource? _scanPause;
     private ScanReport? _report;
     private string _folderPath = string.Empty;
     private string _startTimeText = string.Empty;
     private string _status = string.Empty;
     private bool _isScanning;
     private bool _isWaitingToScan;
+    private bool _isPaused;
     private bool _isSchedulePanelOpen;
 
     public SearchViewModel(
@@ -66,6 +68,10 @@ public sealed class SearchViewModel : ObservableObject
         ScanCommand = new AsyncRelayCommand(ScanAsync, () => !string.IsNullOrWhiteSpace(FolderPath));
         CancelCommand = new RelayCommand(CancelScan, () => _scanCancellation is not null);
 
+        // Only a scan that is actually running can be paused — a scan still waiting for its start time
+        // has not begun, and "Call off" is the only thing to do to it.
+        PauseResumeCommand = new RelayCommand(TogglePause, () => IsScanning);
+
         // The schedule hides behind the clock icon until it is asked for: most visits to this screen
         // are here to scan, and a row about a timer would be furniture on every one of them.
         ToggleSchedulePanelCommand = new RelayCommand(() => IsSchedulePanelOpen = !IsSchedulePanelOpen);
@@ -81,6 +87,9 @@ public sealed class SearchViewModel : ObservableObject
     public ICommand ScanCommand { get; }
 
     public ICommand CancelCommand { get; }
+
+    /// <summary>Holds a running scan where it is, or lets a held one carry on. Distinct from Cancel, which ends it.</summary>
+    public ICommand PauseResumeCommand { get; }
 
     /// <summary>Opens and closes the schedule panel behind the clock icon.</summary>
     public ICommand ToggleSchedulePanelCommand { get; }
@@ -133,6 +142,23 @@ public sealed class SearchViewModel : ObservableObject
         get => _isScanning;
         private set => Set(ref _isScanning, value);
     }
+
+    /// <summary>
+    /// Whether the running scan is paused. It goes on drawing the progress bar — the scan is not over,
+    /// it is only holding — and it flips the pause button's own word between "Pause" and "Resume".
+    /// </summary>
+    public bool IsPaused
+    {
+        get => _isPaused;
+        private set
+        {
+            Set(ref _isPaused, value);
+            Notify(nameof(PauseResumeButtonText));
+        }
+    }
+
+    /// <summary>The pause button in the words of what pressing it now would do.</summary>
+    public string PauseResumeButtonText => IsPaused ? "Resume" : "Pause";
 
     /// <summary>
     /// Whether a delayed scan is waiting for its start time. While it waits, the status line says what
@@ -222,12 +248,19 @@ public sealed class SearchViewModel : ObservableObject
         }
 
         _scanCancellation = new CancellationTokenSource();
+        _scanPause = new PauseTokenSource();
 
         // Reported synchronously, not through Progress<T>: Progress posts its callbacks, and a posted
         // callback can land after the scan has finished and overwrite the summary with "Scanned 3 of
         // 3…". Status is a scalar property, and WPF marshals a scalar change onto the UI thread itself.
+        //
+        // Pause-aware, because a file already in flight when the user pauses still finishes and reports,
+        // and that trailing tick would otherwise stamp a plain "Scanned X of Y…" over the pause message.
+        // Reading IsPaused here means the last word the user is left with is that the scan is held.
         var progress = new SynchronousProgress<ScanProgress>(scanProgress =>
-            Status = $"Scanned {scanProgress.FilesScanned:N0} of {scanProgress.FilesDiscovered:N0} files found so far…");
+            Status = IsPaused
+                ? $"Scan paused at {scanProgress.FilesScanned:N0} of {scanProgress.FilesDiscovered:N0} files. Resume to carry on."
+                : $"Scanned {scanProgress.FilesScanned:N0} of {scanProgress.FilesDiscovered:N0} files found so far…");
 
         try
         {
@@ -241,6 +274,7 @@ public sealed class SearchViewModel : ObservableObject
             ScanReport report = await _scanEngine.ScanAsync(
                 new ScanScope(folderPath, Exclusions.ExcludedPaths),
                 progress,
+                _scanPause.Token,
                 _scanCancellation.Token);
 
             await ShowReportAsync(report);
@@ -257,17 +291,46 @@ public sealed class SearchViewModel : ObservableObject
         {
             IsScanning = false;
             IsWaitingToScan = false;
+            IsPaused = false;
 
             _scanCancellation.Dispose();
             _scanCancellation = null;
+            _scanPause = null;
         }
     }
 
     /// <summary>
     /// Stops a running scan, or calls off one still waiting for its start time. Nothing is written and
-    /// nothing is deleted; there is nothing to undo.
+    /// nothing is deleted; there is nothing to undo. Stops a paused scan just as readily — Cancel is the
+    /// stronger word, and a scan on hold is still a scan the user can end.
     /// </summary>
     public void CancelScan() => _scanCancellation?.Cancel();
+
+    /// <summary>
+    /// Holds the running scan where it is, or lets a held one carry on. The scan keeps its place either
+    /// way — nothing is thrown away by pausing, and a resume picks up from the same file.
+    /// </summary>
+    public void TogglePause()
+    {
+        if (_scanPause is null)
+        {
+            return;
+        }
+
+        if (IsPaused)
+        {
+            _scanPause.Resume();
+            IsPaused = false;
+            return;
+        }
+
+        _scanPause.Pause();
+        IsPaused = true;
+
+        // The progress line stops moving the moment the scan is held, so it would otherwise sit there
+        // reading "Scanned 3 of 500…" with no sign anything had changed. Say what happened instead.
+        Status = "Scan paused. Resume to carry on where it left off.";
+    }
 
     /// <summary>
     /// Announces when the scan will run — today or tomorrow, whichever the clock says — and waits for

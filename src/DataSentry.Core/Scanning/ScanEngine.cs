@@ -81,9 +81,15 @@ public sealed class ScanEngine
     }
 
     /// <summary>Scans the tree and returns the finished report. The per-file results go to the store.</summary>
+    /// <param name="pauseToken">
+    /// Holds the scan between files while the user has it paused, and lets it carry on when they resume.
+    /// A <see langword="default"/> token never pauses — a headless scheduled scan, with nobody watching
+    /// to press the button, passes none.
+    /// </param>
     public async Task<ScanReport> ScanAsync(
         ScanScope scope,
         IProgress<ScanProgress>? progress = null,
+        PauseToken pauseToken = default,
         CancellationToken cancellationToken = default)
     {
         DateTimeOffset startedUtc = _timeProvider.GetUtcNow();
@@ -104,7 +110,7 @@ public sealed class ScanEngine
         // failed to write — never leaves it blocked on a channel nobody is going to read again.
         using var walk = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        Task walking = WalkAsync(scope, pendingFiles.Writer, errors, tracker, walk.Token);
+        Task walking = WalkAsync(scope, pendingFiles.Writer, errors, tracker, pauseToken, walk.Token);
 
         var startedReport = new ScanReport(
             Guid.NewGuid(),
@@ -118,7 +124,7 @@ public sealed class ScanEngine
         {
             await _resultStore.SaveReportAsync(
                 startedReport,
-                ClassifyAsync(pendingFiles.Reader, summary, errors, tracker, cancellationToken),
+                ClassifyAsync(pendingFiles.Reader, summary, errors, tracker, pauseToken, cancellationToken),
                 cancellationToken);
         }
         finally
@@ -159,6 +165,7 @@ public sealed class ScanEngine
         ChannelWriter<FileMetadata> pendingFiles,
         ConcurrentQueue<ScanError> errors,
         ScanProgressTracker tracker,
+        PauseToken pauseToken,
         CancellationToken cancellationToken)
     {
         Exception? failure = null;
@@ -172,6 +179,11 @@ public sealed class ScanEngine
 
             await foreach (FileMetadata file in files.WithCancellation(cancellationToken))
             {
+                // Pausing holds the walk here too, not only the classifier: a scan paused halfway down a
+                // shared drive should stop finding files as well as stop reading them, so that a resume
+                // picks up exactly where the eye left off rather than after the tree was walked anyway.
+                await pauseToken.WaitWhilePausedAsync(cancellationToken);
+
                 tracker.FileDiscovered();
                 await pendingFiles.WriteAsync(file, cancellationToken);
             }
@@ -196,6 +208,7 @@ public sealed class ScanEngine
         ScanSummaryAccumulator summary,
         ConcurrentQueue<ScanError> errors,
         ScanProgressTracker tracker,
+        PauseToken pauseToken,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await foreach (FileMetadata file in pendingFiles.ReadAllAsync(cancellationToken))
@@ -205,6 +218,11 @@ public sealed class ScanEngine
             // been worked through. The same check after the loop catches the scan that was cancelled
             // as its last file went past, so that a stopped scan never ends up looking like a finished one.
             cancellationToken.ThrowIfCancellationRequested();
+
+            // Held here while the user has the scan paused, and let go the moment they resume. A file
+            // already being read carries on — the pause takes effect at the boundary between files, the
+            // same seam cancellation and progress are counted on.
+            await pauseToken.WaitWhilePausedAsync(cancellationToken);
 
             FileScanResult? result = await ClassifyFileAsync(file, errors, cancellationToken);
 
