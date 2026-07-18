@@ -33,6 +33,7 @@ public sealed class SearchViewModel : ObservableObject
     private readonly ScanEngine _scanEngine;
     private readonly DelayedScanStart _delayedStart;
     private readonly IFolderPicker _folderPicker;
+    private readonly IConfirmationPrompt _confirmationPrompt;
     private readonly TimeProvider _timeProvider;
 
     private CancellationTokenSource? _scanCancellation;
@@ -53,11 +54,13 @@ public sealed class SearchViewModel : ObservableObject
         ScheduleViewModel schedule,
         ExclusionListViewModel exclusions,
         IFolderPicker folderPicker,
+        IConfirmationPrompt confirmationPrompt,
         TimeProvider timeProvider)
     {
         _scanEngine = scanEngine;
         _delayedStart = delayedStart;
         _folderPicker = folderPicker;
+        _confirmationPrompt = confirmationPrompt;
         _timeProvider = timeProvider;
 
         Results = results;
@@ -247,6 +250,14 @@ public sealed class SearchViewModel : ObservableObject
             return;
         }
 
+        // A whole drive or a network share is hours of walking, and pointing at one is as often a slip —
+        // C:\ when C:\Users\me\Documents was meant — as a decision. So the one folder big enough to matter
+        // is the one folder we ask about first. Ordinary folders start straight away, as they always have.
+        if (IsDriveRoot(folderPath) && !await ConfirmDriveRootScanAsync(folderPath))
+        {
+            return;
+        }
+
         _scanCancellation = new CancellationTokenSource();
         _scanPause = new PauseTokenSource();
 
@@ -364,6 +375,32 @@ public sealed class SearchViewModel : ObservableObject
         {
             await Schedule.ScheduleDailyAsync(folderPath);
         }
+    }
+
+    /// <summary>
+    /// Asks whether the user really means to scan a whole drive or share before one starts. The question
+    /// carries the path, because "Scan everything on C:\?" is a question a person can answer and "Are you
+    /// sure?" is not — the same rule the delete confirmation is written to.
+    /// </summary>
+    private Task<bool> ConfirmDriveRootScanAsync(string folderPath) =>
+        _confirmationPrompt.ConfirmAsync(
+            $"Scan everything on {folderPath}?",
+            "Scanning a whole drive or network share can take a long time. You can pause or cancel it once it has started.");
+
+    /// <summary>
+    /// Whether the folder is the root of a drive (<c>C:\</c>) or a network share
+    /// (<c>\\server\share</c>) — the scans large enough to be worth a second look before they begin.
+    /// A folder anywhere inside one is not: <c>C:\Users\you</c> is an ordinary, deliberate choice.
+    /// </summary>
+    private static bool IsDriveRoot(string folderPath)
+    {
+        string? root = Path.GetPathRoot(folderPath);
+
+        return !string.IsNullOrEmpty(root)
+            && string.Equals(
+                Path.TrimEndingDirectorySeparator(folderPath),
+                Path.TrimEndingDirectorySeparator(root),
+                StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

@@ -86,6 +86,7 @@ public class MainViewModelTests
             new ScheduleViewModel(new FakeScanScheduler()),
             new ExclusionListViewModel([], new FakeFolderPicker(null)),
             new FakeFolderPicker(null),
+            new FakeConfirmationPrompt(answer: true),
             new FixedTimeProvider(Now));
 
         return new MainViewModel(search, new ReportsViewModel(store, BuildResults(store)));

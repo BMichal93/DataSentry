@@ -471,6 +471,52 @@ public class SearchViewModelTests
         });
     }
 
+    [TestCase(@"C:\", true, TestName = "ScanAsync_AWholeDrive_IsConfirmedBeforeItRuns")]
+    [TestCase(@"C:\Users\you", false, TestName = "ScanAsync_AFolderInsideADrive_RunsWithoutAsking")]
+    [TestCase(@"\\server\share", true, TestName = "ScanAsync_AWholeNetworkShare_IsConfirmedBeforeItRuns")]
+    [TestCase(@"\\server\share\folder", false, TestName = "ScanAsync_AFolderInsideAShare_RunsWithoutAsking")]
+    public async Task ScanAsync_AsksFirstOnlyWhenTheFolderIsAWholeDriveOrShare(string folder, bool expectsPrompt)
+    {
+        // A whole drive or share is hours of walking and as often a slip as a decision, so it is the one
+        // choice DataSentry checks before it acts on it. A folder anywhere inside one is deliberate, and
+        // second-guessing it would be the settings-screen nagging the tool is built to avoid.
+        var confirmation = new FakeConfirmationPrompt(answer: true);
+        SearchViewModel viewModel = BuildViewModel(
+            [FileAt("C:/some/file.txt", sizeBytes: 4_096)],
+            confirmationPrompt: confirmation);
+
+        viewModel.FolderPath = folder;
+
+        await viewModel.ScanAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(confirmation.Questions.Count > 0, Is.EqualTo(expectsPrompt));
+            Assert.That(viewModel.HasResults, Is.True, "confirmed or never asked, the scan still runs");
+        });
+    }
+
+    [Test]
+    public async Task ScanAsync_AWholeDriveTheUserDeclines_NeverRuns()
+    {
+        // The whole point of asking: a drive-root scan the user says no to must not happen. The question
+        // carries the drive, so it is one a person can actually answer.
+        var confirmation = new FakeConfirmationPrompt(answer: false);
+        SearchViewModel viewModel = BuildViewModel(
+            [FileAt("C:/some/file.txt", sizeBytes: 4_096)],
+            confirmationPrompt: confirmation);
+
+        viewModel.FolderPath = @"C:\";
+
+        await viewModel.ScanAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(confirmation.LastQuestion, Does.Contain(@"C:\"));
+            Assert.That(viewModel.HasResults, Is.False, "a drive-root scan the user declined never runs");
+        });
+    }
+
     private static SearchViewModel BuildViewModel(
         IReadOnlyList<FileMetadata> files,
         IReadOnlyDictionary<string, string?>? textByPath = null,
@@ -481,7 +527,8 @@ public class SearchViewModelTests
         TimeProvider? timeProvider = null,
         FakeScanScheduler? scheduler = null,
         ExclusionListViewModel? exclusions = null,
-        Action<ScanScope>? onScopeReceived = null)
+        Action<ScanScope>? onScopeReceived = null,
+        FakeConfirmationPrompt? confirmationPrompt = null)
     {
         store ??= new InMemoryScanResultStore();
         timeProvider ??= new FixedTimeProvider(Now);
@@ -513,6 +560,9 @@ public class SearchViewModelTests
             new ScheduleViewModel(scheduler ?? new FakeScanScheduler()),
             exclusions ?? new ExclusionListViewModel([], new FakeFolderPicker(null)),
             new FakeFolderPicker(pickedFolder),
+            // Says yes by default, so the tests that are not about the drive-root prompt are undisturbed
+            // by it; the tests that are about it hand in their own answer.
+            confirmationPrompt ?? new FakeConfirmationPrompt(answer: true),
             timeProvider);
     }
 
