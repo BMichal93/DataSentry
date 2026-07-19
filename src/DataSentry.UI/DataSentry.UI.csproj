@@ -19,6 +19,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <AssemblyName>DataSentry</AssemblyName>
+
+    <!-- Declares the process long-path-aware (see app.manifest). The scan reaches deep files through
+         the \\?\ form regardless; this extends the same tolerance to everything else the app opens. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <!--

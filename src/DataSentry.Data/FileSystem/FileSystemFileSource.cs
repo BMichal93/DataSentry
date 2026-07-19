@@ -60,7 +60,10 @@ public sealed class FileSystemFileSource : IFileSource
 
         try
         {
-            entries = new DirectoryInfo(directoryPath).GetFileSystemInfos();
+            // Read through the \\?\ form so a folder nested past 260 characters is walked rather than
+            // reported as too long. What comes back carries the prefix, and is stripped straight off
+            // below, so nothing above the file system ever meets it.
+            entries = new DirectoryInfo(ExtendedLengthPath.ToFileSystem(directoryPath)).GetFileSystemInfos();
         }
         catch (Exception exception) when (IsFileSystemFailure(exception))
         {
@@ -82,7 +85,7 @@ public sealed class FileSystemFileSource : IFileSource
 
             if (entry is DirectoryInfo subdirectory)
             {
-                subdirectories.Add(subdirectory.FullName);
+                subdirectories.Add(ExtendedLengthPath.ToDisplay(subdirectory.FullName));
                 continue;
             }
 
@@ -106,7 +109,9 @@ public sealed class FileSystemFileSource : IFileSource
 
     private static FileMetadata ToMetadata(FileInfo file) =>
         new(
-            file.FullName,
+            // The path as the user knows it — the \\?\ the file was reached through is stripped, so it
+            // never reaches a scan result, the database, or the screen.
+            ExtendedLengthPath.ToDisplay(file.FullName),
             file.Length,
             new DateTimeOffset(file.CreationTimeUtc, TimeSpan.Zero),
             new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero),

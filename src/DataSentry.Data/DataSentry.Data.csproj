@@ -5,6 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- So the test suite can reach the internal path helpers directly. The data layer's public surface
+         is its abstractions; the string-level plumbing behind them is still worth a unit test. -->
+    <InternalsVisibleTo Include="DataSentry.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

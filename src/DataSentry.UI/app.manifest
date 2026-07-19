@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!--
+        Opt the whole process into long paths. The walker and the content readers reach files through
+        the \\?\ form themselves, so a deep tree is scanned whatever the machine is set to; this covers
+        the rest — the format libraries that open a file by path, and the recycle-bin delete and "Open
+        file" the user reaches for — on a machine that has long paths turned on.
+      -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+</assembly>
