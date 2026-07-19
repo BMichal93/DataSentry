@@ -30,7 +30,17 @@ Personal data may not be kept forever, and a file holding it is not just clutter
 
 DataSentry cannot know the real obligation attached to any given file — periods differ by document type and jurisdiction. The badge is therefore a prompt for a human decision, never a legal assertion: a breached retention period is a reason to review, not a licence to purge.
 
-![A Review row, expanded: the retention deadline explained in plain language, with types and counts only — never the values](docs/review-row.png)
+![A Review row, expanded: the redacted snippets and retention deadline in plain language, types and counts only — never the values](docs/review-row.png)
+
+## Working through a scan
+
+A finished scan opens on the files that need a decision. Three chips — **Needs review**, **Suggested for deletion**, **Keep** — filter the list, and a row expands in place to show why it was flagged, the kinds of personal data found, and a redacted shape of each match (`48*********12` — the shape, never the value, held only for the session and never written to the database). From there you can:
+
+- **Export** the whole report to a CSV — path, recommendation, types, counts, and the same redacted snippets — to hand to whoever needs to act on it.
+- **Send the condemned files to the recycle bin** in one batch, un-ticking any you want to spare. Files that need review are never deletable this way, and nothing is ever a permanent delete.
+- **Open a flagged file** to read what is actually in it, where your own access controls already guard it — the report itself never prints the data.
+
+Around the scan, DataSentry keeps a **visible, editable list of folders to skip** — Windows, Program Files, and anything you add, remembered between runs in `settings.json`; **asks before scanning a whole drive**, since `C:\` is hours of walking and as often a slip as a decision; and can **pause a running scan** and resume it exactly where it left off, which is not the same as cancelling it. Scans read personal data out of scanned PDFs and images with **OCR**, and reach files nested past the old 260-character Windows path limit.
 
 ## Architecture
 
