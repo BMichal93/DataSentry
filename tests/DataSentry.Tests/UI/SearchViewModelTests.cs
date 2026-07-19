@@ -412,6 +412,7 @@ public class SearchViewModelTests
         // where a defaults-with-no-caller regression would show up again.
         var exclusions = new ExclusionListViewModel(
             ["C:/Windows", "C:/Program Files"],
+            new FakeScanSettingsStore(),
             new FakeFolderPicker(null));
 
         ScanScope? scopeReceived = null;
@@ -558,7 +559,7 @@ public class SearchViewModelTests
             new DelayedScanStart(timeProvider),
             results,
             new ScheduleViewModel(scheduler ?? new FakeScanScheduler()),
-            exclusions ?? new ExclusionListViewModel([], new FakeFolderPicker(null)),
+            exclusions ?? new ExclusionListViewModel([], new FakeScanSettingsStore(), new FakeFolderPicker(null)),
             new FakeFolderPicker(pickedFolder),
             // Says yes by default, so the tests that are not about the drive-root prompt are undisturbed
             // by it; the tests that are about it hand in their own answer.

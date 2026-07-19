@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using DataSentry.UI.Dialogs;
+using DataSentry.UI.Settings;
 
 namespace DataSentry.UI.ViewModels;
 
@@ -12,22 +13,31 @@ namespace DataSentry.UI.ViewModels;
 /// folders the user never saw would not be a default anyone could trust, or challenge if it were wrong.
 /// </summary>
 /// <remarks>
-/// Starts from the machine defaults (Windows, Program Files, and the rest) handed in by the
-/// composition root, and is edited from there for the rest of the session. There is no settings file
-/// yet to remember an edit past the run it was made in — the list resets to the machine defaults on
-/// the next launch.
+/// The list the user last left is remembered in <c>settings.json</c>: a saved list — even one the user
+/// cleared to nothing — wins over the machine defaults, and only a first run, with no settings file
+/// yet, falls back to them. Every add and remove is written straight back, so an edit survives the
+/// window closing on it.
 /// </remarks>
 public sealed class ExclusionListViewModel : ObservableObject
 {
+    private readonly IScanSettingsStore _settingsStore;
     private readonly IFolderPicker _folderPicker;
     private readonly ObservableCollection<ExcludedFolderViewModel> _folders;
 
     private bool _isPanelOpen;
 
-    public ExclusionListViewModel(IReadOnlyList<string> defaultExcludedFolders, IFolderPicker folderPicker)
+    public ExclusionListViewModel(
+        IReadOnlyList<string> defaultExcludedFolders,
+        IScanSettingsStore settingsStore,
+        IFolderPicker folderPicker)
     {
+        _settingsStore = settingsStore;
         _folderPicker = folderPicker;
-        _folders = new ObservableCollection<ExcludedFolderViewModel>(defaultExcludedFolders.Select(ToRow));
+
+        // A saved list wins over the defaults even when it is empty — the user who cleared the list meant
+        // to. Only the absence of a settings file, which is a first run, falls back to the machine defaults.
+        IReadOnlyList<string> startingFolders = settingsStore.Load()?.ExcludedFolders ?? defaultExcludedFolders;
+        _folders = new ObservableCollection<ExcludedFolderViewModel>(startingFolders.Select(ToRow));
 
         TogglePanelCommand = new RelayCommand(() => IsPanelOpen = !IsPanelOpen);
         AddFolderCommand = new AsyncRelayCommand(AddFolderAsync);
@@ -63,6 +73,7 @@ public sealed class ExclusionListViewModel : ObservableObject
         }
 
         _folders.Add(ToRow(folderPath));
+        Save();
     }
 
     private ExcludedFolderViewModel ToRow(string path) => new(path, RemoveFolder);
@@ -74,6 +85,10 @@ public sealed class ExclusionListViewModel : ObservableObject
         if (row is not null)
         {
             _folders.Remove(row);
+            Save();
         }
     }
+
+    /// <summary>Writes the list as it stands now, so the edit that just happened outlives the session.</summary>
+    private void Save() => _settingsStore.Save(new ScanSettings(ExcludedPaths));
 }
