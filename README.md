@@ -80,6 +80,8 @@ dotnet publish src/DataSentry.UI -c Release -r win-x64
 
 The output is `DataSentry.exe` (a self-contained, single-file `win-x64` build) alongside a `tessdata` folder holding the OCR language model, which Tesseract opens by path. The native libraries the app depends on — SQLite, Tesseract, and the PDF rasteriser — are bundled into the exe and unpacked on first run. The publish settings live in [`DataSentry.UI.csproj`](src/DataSentry.UI/DataSentry.UI.csproj) and switch on only when a runtime is named, so an ordinary `dotnet build` stays framework-dependent and quick.
 
+For end users, [`docs/how-to-run.md`](docs/how-to-run.md) is the short version: download the exe, pick a folder, scan.
+
 ## CI
 
 Every push and pull request builds the solution and runs the full NUnit test suite on `windows-latest` — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
