@@ -173,6 +173,47 @@ public class FileSystemFileSourceTests
         Assert.That(file.CreatedUtc.Offset, Is.EqualTo(TimeSpan.Zero), "timestamps are UTC");
     }
 
+    [Test]
+    public async Task EnumerateFiles_AFileNestedPastTheLegacyPathLimit_IsStillFoundWithAPlainPath()
+    {
+        // Windows caps an ordinary path at 260 characters, and a shared drive nested a few teams deep
+        // runs past it. Build one comfortably over and confirm the walker reaches the file at the bottom
+        // rather than reporting the folder as too long — and that the \\?\ it reached through is gone by
+        // the time the file is a result.
+        const string longSegment = "a-fairly-long-folder-name-to-run-the-path-up";
+        string firstSegment = Path.Combine(_rootPath, longSegment);
+        string deepDirectory = Path.Combine(Enumerable.Repeat(longSegment, 6).Prepend(_rootPath).ToArray());
+        string deepFile = Path.Combine(deepDirectory, "buried.txt");
+
+        // The test process is not itself long-path-aware, so it builds the tree through the \\?\ form the
+        // same way the walker reads it.
+        Directory.CreateDirectory(ExtendedLengthPath.ToFileSystem(deepDirectory));
+        File.WriteAllText(ExtendedLengthPath.ToFileSystem(deepFile), "buried treasure");
+
+        Assert.That(deepFile.Length, Is.GreaterThan(260), "the whole point is a path the old limit would reject");
+
+        try
+        {
+            IReadOnlyList<FileMetadata> files = await EnumerateAsync();
+
+            FileMetadata? buried = files.SingleOrDefault(file => file.FileName == "buried.txt");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(buried, Is.Not.Null, "a folder nested past 260 characters is walked, not skipped");
+                Assert.That(buried?.FilePath, Does.Not.StartWith(@"\\?\"), "the extended-length prefix never reaches a scan result");
+                Assert.That(buried?.FilePath.Length, Is.GreaterThan(260));
+                Assert.That(_errors, Is.Empty, "nothing in the tree was too long to read");
+            });
+        }
+        finally
+        {
+            // Take the long subtree back out through \\?\, so the fixture's ordinary recursive delete of
+            // the now-short root does not itself trip over the 260-character limit.
+            Directory.Delete(ExtendedLengthPath.ToFileSystem(firstSegment), recursive: true);
+        }
+    }
+
     private string GivenFile(string relativePath, string contents = "contents")
     {
         string filePath = Path.Combine(_rootPath, relativePath);

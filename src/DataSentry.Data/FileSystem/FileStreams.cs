@@ -12,7 +12,9 @@ internal static class FileStreams
     /// </summary>
     public static FileStream OpenRead(string filePath, int bufferSizeBytes) =>
         new(
-            filePath,
+            // The \\?\ form, so a file nested past 260 characters can still be read for PII and hashed
+            // for duplicates — the same reach the walker used to find it.
+            ExtendedLengthPath.ToFileSystem(filePath),
             new FileStreamOptions
             {
                 Mode = FileMode.Open,
